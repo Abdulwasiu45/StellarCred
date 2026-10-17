@@ -1,0 +1,351 @@
+{
+  "description": "Composite eligibility policy test vectors. Each vector encodes a bounded boolean formula over committed attributes and the expected single pass/fail result.",
+  "version": 1,
+  "circuit": "composite_policy",
+  "max_terms": 8,
+  "attribute_slots": 4,
+  "encoding": {
+    "description": "A policy is a flat list of terms combined with the top-level operator. Each term is either a threshold check or a membership check over one attribute slot. Negation is allowed per term. The policy is bounded to max_terms terms and attribute_slots attributes.",
+    "operators": [
+      "ALL",
+      "ANY",
+      "NONE"
+    ],
+    "term_types": [
+      "THRESHOLD",
+      "MEMBERSHIP"
+    ],
+    "comparisons": [
+      "GE",
+      "LE",
+      "EQ",
+      "NE"
+    ],
+    "term_fields": {
+      "type": "THRESHOLD or MEMBERSHIP",
+      "attribute": "index into the committed attribute array, in [0, attribute_slots)",
+      "comparison": "one of comparisons, required for THRESHOLD",
+      "threshold": "decimal string integer, required for THRESHOLD",
+      "set": "array of decimal string integers, required for MEMBERSHIP",
+      "negate": "boolean, optional, defaults to false"
+    },
+    "semantics": {
+      "ALL": "true iff every term evaluates true",
+      "ANY": "true iff at least one term evaluates true",
+      "NONE": "true iff no term evaluates true",
+      "THRESHOLD": "attribute compared to threshold using comparison",
+      "MEMBERSHIP": "attribute is present in set",
+      "negate": "inverts the term result after evaluation"
+    }
+  },
+  "vectors": [
+    {
+      "name": "accredited_or_high_income_and_jurisdiction",
+      "description": "(accredited OR income >= 100000) AND jurisdiction in allowed set",
+      "operator": "ALL",
+      "attributes": [
+        "1",
+        "150000",
+        "7",
+        "0"
+      ],
+      "terms": [
+        {
+          "type": "THRESHOLD",
+          "attribute": 1,
+          "comparison": "GE",
+          "threshold": "100000",
+          "negate": false
+        },
+        {
+          "type": "MEMBERSHIP",
+          "attribute": 2,
+          "set": [
+            "1",
+            "7",
+            "12"
+          ],
+          "negate": false
+        }
+      ],
+      "expected_result": true
+    },
+    {
+      "name": "accredited_or_high_income_and_jurisdiction_fails",
+      "description": "income below threshold and jurisdiction not allowed",
+      "operator": "ALL",
+      "attributes": [
+        "0",
+        "50000",
+        "99",
+        "0"
+      ],
+      "terms": [
+        {
+          "type": "THRESHOLD",
+          "attribute": 1,
+          "comparison": "GE",
+          "threshold": "100000",
+          "negate": false
+        },
+        {
+          "type": "MEMBERSHIP",
+          "attribute": 2,
+          "set": [
+            "1",
+            "7",
+            "12"
+          ],
+          "negate": false
+        }
+      ],
+      "expected_result": false
+    },
+    {
+      "name": "any_of_three_thresholds",
+      "description": "at least one of three attributes meets its threshold",
+      "operator": "ANY",
+      "attributes": [
+        "10",
+        "20",
+        "30",
+        "40"
+      ],
+      "terms": [
+        {
+          "type": "THRESHOLD",
+          "attribute": 0,
+          "comparison": "GE",
+          "threshold": "100",
+          "negate": false
+        },
+        {
+          "type": "THRESHOLD",
+          "attribute": 1,
+          "comparison": "LE",
+          "threshold": "15",
+          "negate": false
+        },
+        {
+          "type": "THRESHOLD",
+          "attribute": 2,
+          "comparison": "EQ",
+          "threshold": "30",
+          "negate": false
+        }
+      ],
+      "expected_result": true
+    },
+    {
+      "name": "none_of_forbidden_jurisdictions",
+      "description": "jurisdiction is not in any forbidden set",
+      "operator": "NONE",
+      "attributes": [
+        "42",
+        "0",
+        "0",
+        "0"
+      ],
+      "terms": [
+        {
+          "type": "MEMBERSHIP",
+          "attribute": 0,
+          "set": [
+            "1",
+            "2",
+            "3"
+          ],
+          "negate": false
+        },
+        {
+          "type": "MEMBERSHIP",
+          "attribute": 0,
+          "set": [
+            "99",
+            "100"
+          ],
+          "negate": false
+        }
+      ],
+      "expected_result": true
+    },
+    {
+      "name": "negated_term_and_combination",
+      "description": "NOT (income < 50000) AND jurisdiction in set",
+      "operator": "ALL",
+      "attributes": [
+        "0",
+        "75000",
+        "7",
+        "0"
+      ],
+      "terms": [
+        {
+          "type": "THRESHOLD",
+          "attribute": 1,
+          "comparison": "LE",
+          "threshold": "50000",
+          "negate": true
+        },
+        {
+          "type": "MEMBERSHIP",
+          "attribute": 2,
+          "set": [
+            "7",
+            "8"
+          ],
+          "negate": false
+        }
+      ],
+      "expected_result": true
+    },
+    {
+      "name": "boundary_term_count",
+        "description": "maximum number of terms (8) all true under ALL",
+      "operator": "ALL",
+      "attributes": [
+        "5",
+        "5",
+        "5",
+        "5"
+      ],
+      "terms": [
+        {
+          "type": "THRESHOLD",
+          "attribute": 0,
+          "comparison": "EQ",
+          "threshold": "5",
+          "negate": false
+        },
+        {
+          "type": "THRESHOLD",
+          "attribute": 1,
+          "comparison": "EQ",
+          "threshold": "5",
+          "negate": false
+        },
+        {
+          "type": "THRESHOLD",
+          "attribute": 2,
+          "comparison": "EQ",
+          "threshold": "5",
+          "negate": false
+        },
+        {
+          "type": "THRESHOLD",
+          "attribute": 3,
+          "comparison": "EQ",
+          "threshold": "5",
+          "negate": false
+        },
+        {
+          "type": "MEMBERSHIP",
+          "attribute": 0,
+          "set": [
+            "5"
+          ],
+          "negate": false
+        },
+        {
+          "type": "MEMBERSHIP",
+          "attribute": 1,
+          "set": [
+            "5"
+          ],
+          "negate": false
+        },
+        {
+          "type": "MEMBERSHIP",
+          "attribute": 2,
+          "set": [
+            "5"
+          ],
+          "negate": false
+        },
+        {
+          "type": "MEMBERSHIP",
+          "attribute": 3,
+          "set": [
+            "5"
+          ],
+          "negate": false
+        }
+      ],
+      "expected_result": true
+    },
+    {
+      "name": "boundary_term_count_fails",
+      "description": "maximum number of terms (8) with one false under ALL",
+      "operator": "ALL",
+      "attributes": [
+        "5",
+        "5",
+        "5",
+        "6"
+      ],
+      "terms": [
+        {
+          "type": "THRESHOLD",
+          "attribute": 0,
+          "comparison": "EQ",
+          "threshold": "5",
+          "negate": false
+        },
+        {
+          "type": "THRESHOLD",
+          "attribute": 1,
+          "comparison": "EQ",
+          "threshold": "5",
+          "negate": false
+        },
+        {
+          "type": "THRESHOLD",
+          "attribute": 2,
+          "comparison": "EQ",
+          "threshold": "5",
+          "negate": false
+        },
+        {
+          "type": "THRESHOLD",
+          "attribute": 3,
+          "comparison": "EQ",
+          "threshold": "5",
+          "negate": false
+        },
+        {
+          "type": "MEMBERSHIP",
+          "attribute": 0,
+          "set": [
+            "5"
+          ],
+          "negate": false
+        },
+        {
+          "type": "MEMBERSHIP",
+          "attribute": 1,
+          "set": [
+            "5"
+          ],
+          "negate": false
+        },
+        {
+          "type": "MEMBERSHIP",
+          "attribute": 2,
+          "set": [
+            "5"
+          ],
+          "negate": false
+        },
+        {
+          "type": "MEMBERSHIP",
+          "attribute": 3,
+          "set": [
+            "5"
+          ],
+          "negate": false
+        }
+      ],
+      "expected_result": false
+    }
+  ]
+}

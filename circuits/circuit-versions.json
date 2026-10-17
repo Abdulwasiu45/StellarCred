@@ -20,10 +20,14 @@
     "  deprecate and prune the old one per SUPPORT_POLICY.md.",
     "- Every circuit listed here is proven and has an on-chain VK. The `commit`",
     "  and `commit3` helpers are deliberately absent: they are executed to derive",
-    "  commitments and never proven, so there is no VK to tie a version to.",
+    "  commitments and never proven, so there is no VKe to tie a version to.",
     "- Both fields are also asserted against circuits/testvectors/*.json by",
     "  circuits/scripts/testvectors.js, so a circuit edit that forgets to bump",
-    "  the version fails CI."
+    "  the version fails CI.",
+    "",
+    "The composite_eligibility_proof circuit evaluates a bounded boolean policy",
+    "formula over multiple committed attributes and outputs a single pass/fail.",
+    "The policy encoding is documented in circuits/composite_eligibility.md."
   ],
   "circuits": {
     "kyc_proof": { "version": "1.0.0", "vkVersion": 1 },
@@ -36,6 +40,6 @@
     "employment_proof": { "version": "1.0.0", "vkVersion": 1 },
     "aggregate_proof": { "version": "1.0.0", "vkVersion": 1 },
     "set_membership": { "version": "1.0.0", "vkVersion": 1 },
-    "composite_eligibility": { "version": "1.0.0", "vkVersion": 1 }
+    "composite_eligibility_proof": { "version": "1.0.0", "vkVersion": 1 }
   }
 }

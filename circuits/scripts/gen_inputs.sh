@@ -94,53 +94,51 @@ SM_SALT="42"
 C=$(commit $SM_MEMBER $SM_SALT)
 # Compute merkle_root and the Merkle path lines for the member value.
 MERKLE_ROOT=$(node "$SCRIPTS"/merkle_tree.js root $SM_VALUES)
-MERLE_LINES=$(node "$SCRIPTS"/merkle_tree.js path $SM_VALUES --for $SM_MEMBER)
+MERKLE_LINES=$(node "$SCRIPTS"/merkle_tree.js path $SM_VALUES --for $SM_MEMBER)
 {
   echo "value = \"$SM_MEMBER\""
   echo "salt = \"$SM_SALT\""
   echo "commitment = \"$C\""
-  echo "$MERLE_LINES"
+  echo "$MERKLE_LINES"
   node "$SCRIPTS"/sign.js "$C"
 } > "$ROOT/set_membership/Prover.toml"
 
-echo "composite_policy..."
-# Composite eligibility circuit: proves a bounded boolean policy over
-# multiple committed attributes in a single proof. The policy is a
-COMPOSITE_POLICY fixed-shape expression encoded as a flat array of terms:
-#   term = { attr, comparison, value, negate }
-# and a connective tree of AND/OR nodes over those terms.
-# See circuits/composite_policy/README.md for the full encoding.
-# Demo policy: (income >= 200000 AND accredited) OR (country == 566)
-# with three committed attributes: accredited, accredited, income,
-# jurisdiction. The witness reveals only the final pass/fail bit.
-COMPOSITE_ATTR_COMMITS=""
-ACCREDITED_C=$(commit 1 55)
-INCOME_C=$(commit 250000 99)
-JURISD_C=$(commit 566 77)
+echo "composite_proof..."
+# Bounded boolean policy over two committed attributes. Policy is encoded
+# as a fixed-shape expression tree of at most MAX_TERMS leaves (see
+# circuits/composite_proof/src/main.nr for the full encoding and tests).
+# Demo: (accredited OR income >= threshold) AND jurisdiction-eligible.
+# Attribute 0 = accredited flag (1), Attribute 1 = income (250000),
+# Attribute 2 = jurisdiction (566).
+# Policy ops: 0 = AND, 1 = OR, 2 = GE, 3 = LT, 4 = EQ, 5 = NEQ, 6 = IN_LIST, 7 = NOT_IN_LIST.
+# Nodes are encoded as (op, left_idx, right_idx, attr_idx, const); leaves use
+# op >= 2 with attr_idx selecting the attribute and const the comparand.
+# Root node is node 0. Unused nodes are zeroed and ignored by the circuit.
+COMP COMP2
+COMP=$(commit 1 7)
+COMP2=$(commit 250000 9)
+COMP3=$(commit 566 13)
 {
-  echo "accredited_commitment = \"$ACCREDITED_C\""
-  echo "income_commitment = \"$INCOME_C\""
-  echo "jurisdiction_commitment = \"$JURISD_C\""
   echo "accredited = \"1\""
   echo "income = \"250000\""
   echo "jurisdiction = \"566\""
-  echo "accredited_salt = \"55\""
-  echo "income_salt = \"99\""
-  echo "jurisdiction_salt = \"77\""
+  echo "salt0 = \"7\""
+  echo "salt1 = \"9\""
+  echo "salt2 = \"13\""
+  echo "commitment0 = \"$COMP\""
+  echo "commitment1 = \"$COMP2\""
+  echo "commitment2 = \"$COMP3\""
   echo "income_threshold = \"200000\""
-  echo "jurisdiction_allowed = \"566\""
-  echo "max_terms = \"4\""
-  echo "term_attr = [\"0\", \"1\", \"2\", \"0\"]"
-  echo "term_op = [\"0\", \"0\", \"1\", \"0\"]"
-  echo "term_value = [\"1\", \"200000\", \"566\", \"0\"]"
-  echo "term_negate = [\"0\", \"0\", \"0\", \"0\"]"
-  echo "connective = [\"1\", \"0\", \"0\", \"0\"]"
-  echo "connective_left = [\"0\", \"0\", \"0\", \"0\"]"
-  echo "connective_right = [\"1\", \"2\", \"0\", \"0\"]"
-  echo "connective_op = [\"0\", \"1\", \"0\", \"0\"]"
-  echo "root = \"0\""
-  node "$SCRIPTS"/sign.js "$ACCREDITED_C"
-} > "$ROOT/composite_policy/Prover.toml"
+  echo "accredited_required = \"1\""
+  echo "jurisdiction_restricted = [\"408\", \"364\", \"0\", \"0\", \"0\", \"0\", \"0\", \"0\"]"
+  echo "jurisdiction_mode = \"0\""
+  echo "node_op = [\"1\", \"0\", \"2\", \"6\", \"0\", \"0\", \"0\", \"0\"]"
+  echo "node_left = [\"1\", \"2\", \"0\", \"0\", \"0\", \"0\", \"0\", \"0\"]"
+  echo "node_right = [\"2\", \"3\", \"0\", \"0\", \"0\", \"0\", \"0\", \"0\"]"
+  echo "node_attr = [\"0\", \"0\", \"1\", \"2\", \"0\", \"0\", \"0\", \"0\"]"
+  echo "node_const = [\"0\", \"0\", \"0\", \"0\", \"0\", \"0\", \"0\", \"0\"]"
+  node "$SCRIPTS"/sign.js "$COMP"
+} > "$ROOT/composite_proof/Prover.toml"
 
 echo "done. demo issuer public key:"
 node "$SCRIPTS"/sign.js --pubkey

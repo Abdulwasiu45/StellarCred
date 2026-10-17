@@ -1,8 +1,8 @@
 [package]
 name = "composite_policy"
 type = "lib"
-author = "Composite Policy Circuit Authors"
-compiler_version = ">=0.31.0"
-description = "Bounded composite eligibility circuit: proves a boolean policy formula over committed attributes and reveals only pass/fail."
+authors = ["Noir Contributors"]
+compiler_version = ">=0.30.0"
+description = "Bounded composite eligibility policy circuit: proves a fixed-shape boolean formula (AND/OR of threshold and membership checks) over multiple committed attributes and reveals only the pass/fail result."
 
 [dependencies]

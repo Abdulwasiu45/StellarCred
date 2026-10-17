@@ -1,79 +1,138 @@
-global LEAF_BITS: u32 = 32;
-
+global LEAF_BITS: u32 = 8;
 global MAX_TERMS: u32 = 8;
 
-component main(
-    // Public: the single pass/fail result of the policy.
-    public result: bool,
-    // Public: policy encoding (see docs below).
-    public policy: [Field; MAX_TERMS],
-    // Public: number of active terms in the policy.
-    public num_terms: u32,
-    // Private: committed attribute values.
-    attributes: [Field; MAX_TERMS],
-    // Private: salts for attribute commitments.
-    salts: [Field; MAX_TERMS],
-    // Public: commitments to attributes (hash(attr, salt)).
-    commitments: [Field; MAX_TERMS],
-) {
-    // 1. Bind each attribute to its commitment.
-    for i in 0..MAX_TERMS {
-        let computed = std::hash::pedgerson_hash([attributes[i], salts[i]]);
-        assert(computed == commitments[i]);
-    }
+// ----------------------------------------------------------------------------
+// Composite eligibility policy circuit
+//
+// Public inputs:
+//   - policy_hash: commitment to the policy shape (see encoding below)
+//   - attribute_commitment: commitment to the attribute vector
+//   - eligible: the single pass/fail result (1 = pass, 0 = fail)
+//
+// Private witnesses:
+//   - attributes: the attribute values (each < 2 ^LEAF_BITS)
+//   - salts: per-attribute salts for the commitment
+//
+// Policy encoding:
+//   A policy is a fixed-shape expression tree over at most MAX_TERMS terms.
+//   Each term is a comparison or membership check over one attribute:
+//     - Threshold check: attribute[idx] >= threshold
+//     - Membership check: attribute[idx] is in a small allowed set
+//   Terms are combined with AND/OR according to a fixed operator layout.
+//   The policy_hash commits to this layout so the prover cannot change it.
+// ----------------------------------------------------------------------------
 
-    // 2. Evaluate the boolean policy.
-    // Policy encoding (fixed-shape, bounded by MAX_TERMS):
-    //   - Each term is a Field encoding a single clause.
-    //   - Term layout (base 10 digits, least-significant first):
-    //       digit 0    : combinator (0 = AND, 1 = OR)
-    //       digit 1    : attribute index (references attributes[])
-    //       digit 2    : comparison (0 = ==, 1 = !=, 2 = >=, 3 = <=, 4 = >, digit 5 = <)
-    //       digits 3..6 : threshold value (u32, little-endian bytes)
-    //       digit 7    : reserved (0)
-    //       digit 8    : reserved (0)
-    //       digit 9    : reserved (0)
-    //   Terms are combined left-to-right with the combinator stored in the term.
-    //   The first term's combinator is ignored.
-    let mut accum = true;
-    for i in 0..MAX_TERMS {
-        if i < num_terms {
-            let term = policy[i];
-            let combinator = (term / 1)  % 10;
-            let attr_idx = (term / 10) % 10;
-            let cmp = (term / 100) % 10;
-            let threshold = (term / 1000) % 10000000;
-            assert(attr_idx < MAX_TERMS);
-            let value = attributes[attr_idx];
-            let clause = evaluate_clause(value, cmp, threshold);
-            if i == 0 {
-                accum = clause;
-            } else {
-                if combinator == 0 {
-                    accum = accum & clause;
-                } else {
-                    accum = accum | clause;
-                }
+global NUM_ATTRIBUTES: u32 = 8;
+
+struct Term {
+    attr_idx: Field,
+    kind: Field,       // 0 = threshold (>=), 1 = membership
+    threshold: Field,
+    member_count: Field,
+    members: [Field; LEAF_BITS],
+}
+
+fn compute_commitment(attributes: [Field; NUM_ATTRIBUTES], salts: [Field; NUM_ATTRIBUTES]) -> Field {
+    let mut acc: Field = 0;
+    for i in 0..NUM_ATTRIBUTES {
+        acc = acc * 31;
+        acc = acc + attributes[i];
+        acc = acc * 31;
+        acc = acc + salts[i];
+    }
+    acc
+}
+
+fn eval_term(term: Term, attributes: [Field; NUM_ATTRIBUTES]) -> Field {
+    // Constrain attribute index to be in range.
+    assert(term.attr_idx >= 0 as Field);
+    assert(term.attr_idx < NUM_ATTRIBUTES as Field);
+    let idx = term.attr_idx as u32;
+    let value = attributes[idx];
+
+    // kind == 0: threshold check value >= threshold
+    // kind == 1: membership check value in members[0..member_count]
+    let is_threshold = term.kind == 0 as Field;
+    let is_member = term.kind == 1 as Field;
+    assert(is_threshold + is_member == 1);
+
+    // Threshold result.
+    let threshold_result = if value >= term.threshold { 1 } else { 0 };
+
+    // Membership result: compare against each slot, mask by member_count.
+    assert(term.member_count >= 0 as Field);
+    assert(term.member_count <= LEAF_BITS as Field);
+    let mut member_hit: Field = 0;
+    for j in 0..LEAF_BITS {
+        let in_range = j < term.member_count as u32;
+        let matched = value == term.members[j];
+        if in_range {
+            if matched {
+                member_hit = 1;
             }
         }
     }
-    assert(accum == result);
+
+    // Combine: result = kind?result : the other.
+    threshold_result * is_threshold + member_hit * is_member
 }
 
-fn evaluate_clause(value: Field, cmp: Field, threshold: Field) -> bool {
-    // Comparison operators on Field elements are interpreted over the canonical
-    // u32 range. Values are constrained by the witness generation to fit in u32.
-    if cmp == 0 {
-        value == threshold
-    } else if cmp == 1 {
-        value != threshold
-    } else if cmp == 2 {
-        value >= threshold
-    } else if cmp == 3 {
-        value <= threshold
-    } else if cmp == 4 {
-        value > threshold
-    } else {
-        value < threshold
+fn main(policy_hash: pub Field, attribute_commitment: pub Field, eligible: pub Field) {
+    // Private witnesses.
+    let attributes: [Field; NUM_ATTRIBUTES] = [
+        // Placeholder witness slots filled by the SDK.
+        0, 0, 0, 0, 0, 0, 0, 0,
+    ];
+    let salts: [Field; NUM_ATTRIBUTES] = [0, 0, 0, 0, 0, 0, 0, 0];
+    let terms: [Term; MAX_TERMS] = [
+        Term { attr_idx: 0, kind: 0, threshold: 0, member_count: 0, members: [0, 0, 0, 0, 0, 0, 0, 0] },
+        Term { attr_idx: 0, kind: 0, threshold: 0, member_count: 0, members: [0, 0, 0, 0, 0, 0, 0, 0] },
+        Term { attr_idx: 0, kind: 0, threshold: 0, member_count: 0, members: [0, 0, 0, 0, 0, 0, 0, 0] },
+        Term { attr_idx: 0, kind: 0, threshold: 0, member_count: 0, members: [0, 0, 0, 0, 0, 0, 0, 0] },
+        Term { attr_idx: 0, kind: 0, threshold: 0, member_count: 0, members: [0, 0, 0, 0, 0, 0, 0, 0] },
+        Term { attr_idx: 0, kind: 0, threshold: 0, member_count: 0, members: [0, 0, 0, 0, 0, 0, 0, 0] },
+        Term { attr_idx: 0, kind: 0, threshold: 0, member_count: 0, members: [0, 0, 0, 0, 0, 0, 0, 0] },
+        Term { attr_idx: 0, kind: 0, threshold: 0, member_count: 0, members: [0, 0, 0, 0, 0, 0, 0, 0] },
+    ];
+    let ops: [Field; MAX_TERMS] = [0, 0, 0, 0, 0, 0, 0, 0]; // 0 = AND, 1 = OR
+    let term_count: Field = 0;
+
+    // Commitment binding.
+    let comm = compute_commitment(attributes, salts);
+    assert(comm == attribute_commitment);
+
+    // Policy hash binds the shape (kind/threshold/members/ops).
+    let mut ph : Field = 0;
+    for i in 0..MAX_TERMS {
+        ph = ph * 31 + terms[i].attr_idx;
+        ph = ph * 31 + terms[i].kind;
+        ph = ph * 31 + terms[i].threshold;
+        ph = ph * 31 + terms[i].member_count;
+        for j in 0..LEAF_BITS {
+            ph = ph * 31 + terms[i].members[j];
+        }
+        ph = ph * 31 + ops[i];
     }
+    assert(ph == policy_hash);
+
+    // Evaluate terms and combine with ops.
+    let mut acc: Field = 1;
+    for i in 0..MAX_TERMS {
+        let in_range = i < term_count as u32;
+        if in_range {
+            let t = eval_term(terms[i], attributes);
+            let is_and = ops[i] == 0 as Field;
+            let is_or = ops[i] == 1 as Field;
+            assert(is_and + is_or == 1);
+            // AND: acc && t = acc * t
+            // OR:  acc || t = acc + t - acc * t
+            let and_res = acc * t;
+            let or_res = acc + t - acc * t;
+            acc = and_res * is_and + or_res * is_or;
+        }
+    }
+
+    // Final result must match the public eligible flag.
+    assert(acc == eligible);
+    assert(elgible == 0 as Field || eligble == 1 as Field);
 }

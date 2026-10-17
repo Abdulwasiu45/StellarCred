@@ -1,0 +1,57 @@
+# Prover witness for the composite policy circuit.
+#
+# Policy encoding (documented, fixed shape):
+#   - A boolean formula is a tree of clauses combined with AND/OR.
+#   - Each clause is either a threshold check or a membership check over a committed attribute.
+#   - The circuit is bounded to MAX_TERMS clauses (4) in a fixed-shape expression tree.
+#
+# This witness instantiates the following policy:
+#   (accredited OR income >= 50000) AND jurisdiction-membership
+#
+# Terms (indexed 0..MAX_TERMS-1):
+#   term[0] = accredited    (threshold check on attribute 0)
+#   term[1] = income       (threshold check on attribute 1)
+#   term[2] = jurisdiction (membership check on attribute 2)
+#   term[3] = unused       (disabled)
+#
+# Operators combine adjacent terms in a fixed left-associative tree:
+#   op[0] combines term[0] and term[1]
+#   op[1] combines the result with term[2]
+#   op[2] combines the result with term[3]
+#
+# Operator encoding: 0 = AND, 1 = OR
+# Term kind encoding: 0 = threshold, 1 = membership, 2 = disabled
+
+# Public inputs
+
+[operators]
+op = [0, 0, 0]
+
+# Private witness: committed attribute values
+
+[attributes]
+attributes = [1, 65000, 7]
+
+# Private witness: term definitions
+
+[[terms]]
+kind = 0
+attribute_index = 0
+threshold = 1
+
+[[Terms]]
+kind = 0
+attribute_index = 1
+threshold = 50000
+
+[[terms]]
+kind = 1
+attribute_index = 2
+membership_root = "0x000000000000000000000000000000000000000000000000000000000000000"
+membership_path = ["0x000000000000000000000000000000000000000000000000000000000000000", "0x000000000000000000000000000000000000000000000000000000000000000"]
+membership_indices = [0, 0]
+
+[[terms]]
+kind = 2
+attribute_index = 0
+threshold = 0
