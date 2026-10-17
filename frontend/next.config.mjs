@@ -1,6 +1,7 @@
 import { createRequire } from "module";
 import withBundleAnalyzer from "@next/bundle-analyzer";
 import createNextIntlPlugin from "next-intl/plugin";
+import { buildCsp } from "./lib/csp.mjs";
 
 const withBundleReport = withBundleAnalyzer({
   enabled: process.env.ANALYZE === "true",
@@ -95,38 +96,11 @@ const nextConfig = {
     // minimally permissive for deployments that leave WalletConnect disabled.
     const walletConnectEnabled = Boolean(process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID);
 
-    const csp = [
-      "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'",
-      "style-src 'self' 'unsafe-inline'",
-      // Wallet icons for the Stellar Wallets Kit picker: stellar.creit.tech hosts
-      // Albedo/Freighter/xBull/Rabet/Lobstr/Hana/Klever/WalletConnect's, storage.herewallet.app
-      // hosts HOT Wallet's — needed for every wallet the kit shows, not just WalletConnect,
-      // so these two stay unconditional. explorer-api.walletconnect.com is WalletConnect's
-      // own wallet list, shown only if its QR pairing screen is opened.
-      // Verified against the actual requests the picker modal makes in a real browser
-      // (next build && next start), not just package source greps.
-      `img-src 'self' data: https://stellar.creit.tech https://storage.herewallet.app${
-        walletConnectEnabled ? " https://explorer-api.walletconnect.com" : ""
-      }`,
-      // contracts.ts ("use client") calls getAccount / prepareTransaction /
-      // sendTransaction against the Soroban RPC from the browser — must be
-      // allowed here or proof submission and on-chain verification break.
-      // The relay/explorer/verify entries are required by lib/wallet.ts's
-      // WalletConnectModule — hardcoded by @walletconnect/core and
-      // @walletconnect/modal-core, not configurable via env.
-      `connect-src 'self' https://soroban-testnet.stellar.org https://soroban-mainnet.stellar.org${
-        walletConnectEnabled
-          ? " wss://relay.walletconnect.com wss://relay.walletconnect.org https://explorer-api.walletconnect.com https://verify.walletconnect.com https://verify.walletconnect.org"
-          : ""
-      }${process.env.NEXT_PUBLIC_RPC_URL ? " " + process.env.NEXT_PUBLIC_RPC_URL : ""}`,
-    ];
-    if (walletConnectEnabled) {
-      // verify.walletconnect.{com,org} is WalletConnect's domain-verification
-      // iframe (loaded by @walletconnect/sign-client); without this it's
-      // silently blocked and WalletConnect connect attempts hang.
-      csp.push("frame-src 'self' https://verify.walletconnect.com https://verify.walletconnect.org");
-    }
+    const csp = buildCsp({
+      strict: false,
+      walletConnectEnabled,
+      rpcUrl: process.env.NEXT_PUBLIC_RPC_URL,
+    });
 
     // Allow framing for the badge route (#532): it's designed to be embedded
     // in third-party sites via iframe. An optional BADGE_ALLOWED_ORIGINS env
@@ -141,15 +115,10 @@ const nextConfig = {
         ? `frame-ancestors ${badgeAllowedOrigins.join(" ")}`
         : "frame-ancestors *";
 
-    const badgeCsp = [
-      ...csp,
-      badgeFrameAncestors,
-    ].join("; ") + ";";
-
-    const defaultCsp = [
-      ...csp,
-      "frame-ancestors 'none'",
-    ].join("; ") + ";";
+    // buildCsp() returns a joined string ending with ";".
+    // Append the frame-ancestors directive for each route variant.
+    const badgeCsp = `${csp} ${badgeFrameAncestors};`;
+    const defaultCsp = `${csp} frame-ancestors 'none';`;
 
     return [
       {
