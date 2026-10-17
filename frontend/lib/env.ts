@@ -154,6 +154,10 @@ const envSchema = z
       emptyToUndefined,
       z.coerce.number().int().positive().optional(),
     ),
+    RATE_LIMIT_CSP_REPORT_IP: z.preprocess(
+      emptyToUndefined,
+      z.coerce.number().int().positive().optional(),
+    ),
 
     // --- Ops -------------------------------------------------------------------
     LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
