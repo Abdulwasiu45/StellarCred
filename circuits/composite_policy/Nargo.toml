@@ -1,0 +1,8 @@
+[package]
+name = "composite_policy"
+type = "lib"
+author = "Composite Policy Circuit Authors"
+compiler_version = ">=0.31.0"
+description = "Bounded composite eligibility circuit: proves a boolean policy formula over committed attributes and reveals only pass/fail."
+
+[dependencies]

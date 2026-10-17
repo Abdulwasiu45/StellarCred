@@ -25,54 +25,54 @@ commit3() { # value1 value2 salt -> canonical decimal commitment (3-arity, for e
 
 echo "kyc_proof..."
 C=$(commit 42 7)
-{ echo "secret = \"42\""; echo "salt = \"7\""; echo "commitment = \"$C\""; node "$SCRIPTS/sign.js" "$C"; } \
+{ echo "secret = \"42\""; echo "salt = \"7\""; echo "commitment = \"$C\""; node "$SCRIPTS"/sign.js "$C"; } \
   > "$ROOT/kyc_proof/Prover.toml"
 
 echo "age_proof..."
 C=$(commit 3650 12345)
 { echo "date_of_birth = \"3650\""; echo "salt = \"12345\""; echo "commitment = \"$C\""; \
-  echo "current_date = \"20000\""; echo "threshold_years = \"18\""; node "$SCRIPTS/sign.js" "$C"; } \
+  echo "current_date = \"20000\""; echo "threshold_years = \"18\""; node "$SCRIPTS"/sign.js "$C"; } \
   > "$ROOT/age_proof/Prover.toml"
 
 echo "income_proof..."
 C=$(commit 250000 99)
 { echo "income = \"250000\""; echo "salt = \"99\""; echo "commitment = \"$C\""; \
-  echo "threshold = \"200000\""; node "$SCRIPTS/sign.js" "$C"; } \
+  echo "threshold = \"200000\""; node "$SCRIPTS"/sign.js "$C"; } \
   > "$ROOT/income_proof/Prover.toml"
 
 echo "accreditation_proof..."
 C=$(commit 1500000 99)
 { echo "net_worth = \"1500000\""; echo "salt = \"99\""; echo "commitment = \"$C\""; \
-  echo "threshold = \"1000000\""; node "$SCRIPTS/sign.js" "$C"; } \
+  echo "threshold = \"1000000\""; node "$SCRIPTS"/sign.js "$C"; } \
   > "$ROOT/accreditation_proof/Prover.toml"
 
 echo "funds_proof..."
 C=$(commit 250000 99)
 { echo "balance = \"250000\""; echo "salt = \"99\""; echo "commitment = \"$C\""; \
-  echo "threshold = \"200000\""; node "$SCRIPTS/sign.js" "$C"; } \
+  echo "threshold = \"200000\""; node "$SCRIPTS"/sign.js "$C"; } \
   > "$ROOT/funds_proof/Prover.toml"
 
 echo "range_proof..."
 C=$(commit 40000 2024)
 { echo "value = \"40000\""; echo "salt = \"2024\""; echo "commitment = \"$C\""; \
-  echo "min = \"30000\""; echo "max = \"50000\""; node "$SCRIPTS/sign.js" "$C"; } \
+  echo "min = \"30000\""; echo "max = \"50000\""; node "$SCRIPTS"/sign.js "$C"; } \
   > "$ROOT/range_proof/Prover.toml"
 
 echo "jurisdiction_proof (denylist)..."
 C=$(commit 566 77)
 { echo "jurisdiction = \"566\""; echo "salt = \"77\""; echo "commitment = \"$C\""; \
-  echo "denylist = \"true\""; node "$SCRIPTS/sign.js" "$C"; } \
+  echo "denylist = \"true\""; node "$SCRIPTS"/sign.js "$C"; } \
   > "$ROOT/jurisdiction_proof/Prover.toml"
 { echo "country_code = \"566\""; echo "salt = \"77\""; echo "commitment = \"$C\""; \
   echo "restricted = [\"840\", \"364\", \"408\", \"0\", \"0\", \"0\", \"0\", \"0\"]"; \
-  echo "mode = \"0\""; node "$SCRIPTS/sign.js" "$C"; } \
+  echo "mode = \"0\""; node "$SCRIPTS"/sign.js "$C"; } \
  > "$ROOT/jurisdiction_proof/Prover.toml"
 
 echo "jurisdiction_proof (allowlist)..."
 C=$(commit 566 77)
 { echo "country_code = \"566\""; echo "salt = \"77\""; echo "commitment = \"$C\""; \
   echo "restricted = [\"566\", \"276\", \"356\", \"0\", \"0\", \"0\", \"0\", \"0\"]"; \
-  echo "mode = \"1\""; node "$SCRIPTS/sign.js" "$C"; } \
+  echo "mode = \"1\""; node "$SCRIPTS"/sign.js "$C"; } \
   > "$ROOT/jurisdiction_proof/Prover_allowlist.toml"
 
 echo "employment_proof..."
@@ -81,7 +81,7 @@ echo "employment_proof..."
 # binary "is employed" tag.
 C=$(commit3 1 5 11)
 { echo "employment_status = \"1\""; echo "seniority = \"5\""; echo "salt = \"11\""; \
-  echo "commitment = \"$C\""; echo "min_seniority = \"3\""; node "$SCRIPTS/sign.js" "$C"; } \
+  echo "commitment = \"$C\""; echo "min_seniority = \"3\""; node "$SCRIPTS"/sign.js "$C"; } \
   > "$ROOT/employment_proof/Prover.toml"
 
 echo "set_membership..."
@@ -93,16 +93,54 @@ SM_MEMBER="840"
 SM_SALT="42"
 C=$(commit $SM_MEMBER $SM_SALT)
 # Compute merkle_root and the Merkle path lines for the member value.
-MERKLE_ROOT=$(node "$SCRIPTS/merkle_tree.js" root $SM_VALUES)
-MERKLE_LINES=$(node "$SCRIPTS/merkle_tree.js" path $SM_VALUES --for $SM_MEMBER)
+MERKLE_ROOT=$(node "$SCRIPTS"/merkle_tree.js root $SM_VALUES)
+MERLE_LINES=$(node "$SCRIPTS"/merkle_tree.js path $SM_VALUES --for $SM_MEMBER)
 {
   echo "value = \"$SM_MEMBER\""
   echo "salt = \"$SM_SALT\""
   echo "commitment = \"$C\""
-  echo "$MERKLE_LINES"
-  node "$SCRIPTS/sign.js" "$C"
+  echo "$MERLE_LINES"
+  node "$SCRIPTS"/sign.js "$C"
 } > "$ROOT/set_membership/Prover.toml"
 
-echo "done. demo issuer public key:"
-node "$SCRIPTS/sign.js" --pubkey
+echo "composite_policy..."
+# Composite eligibility circuit: proves a bounded boolean policy over
+# multiple committed attributes in a single proof. The policy is a
+COMPOSITE_POLICY fixed-shape expression encoded as a flat array of terms:
+#   term = { attr, comparison, value, negate }
+# and a connective tree of AND/OR nodes over those terms.
+# See circuits/composite_policy/README.md for the full encoding.
+# Demo policy: (income >= 200000 AND accredited) OR (country == 566)
+# with three committed attributes: accredited, accredited, income,
+# jurisdiction. The witness reveals only the final pass/fail bit.
+COMPOSITE_ATTR_COMMITS=""
+ACCREDITED_C=$(commit 1 55)
+INCOME_C=$(commit 250000 99)
+JURISD_C=$(commit 566 77)
+{
+  echo "accredited_commitment = \"$ACCREDITED_C\""
+  echo "income_commitment = \"$INCOME_C\""
+  echo "jurisdiction_commitment = \"$JURISD_C\""
+  echo "accredited = \"1\""
+  echo "income = \"250000\""
+  echo "jurisdiction = \"566\""
+  echo "accredited_salt = \"55\""
+  echo "income_salt = \"99\""
+  echo "jurisdiction_salt = \"77\""
+  echo "income_threshold = \"200000\""
+  echo "jurisdiction_allowed = \"566\""
+  echo "max_terms = \"4\""
+  echo "term_attr = [\"0\", \"1\", \"2\", \"0\"]"
+  echo "term_op = [\"0\", \"0\", \"1\", \"0\"]"
+  echo "term_value = [\"1\", \"200000\", \"566\", \"0\"]"
+  echo "term_negate = [\"0\", \"0\", \"0\", \"0\"]"
+  echo "connective = [\"1\", \"0\", \"0\", \"0\"]"
+  echo "connective_left = [\"0\", \"0\", \"0\", \"0\"]"
+  echo "connective_right = [\"1\", \"2\", \"0\", \"0\"]"
+  echo "connective_op = [\"0\", \"1\", \"0\", \"0\"]"
+  echo "root = \"0\""
+  node "$SCRIPTS"/sign.js "$ACCREDITED_C"
+} > "$ROOT/composite_policy/Prover.toml"
 
+echo "done. demo issuer public key:"
+node "$SCRIPTS"/sign.js --pubkey

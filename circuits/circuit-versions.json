@@ -35,6 +35,7 @@
     "range_proof": { "version": "1.0.0", "vkVersion": 1 },
     "employment_proof": { "version": "1.0.0", "vkVersion": 1 },
     "aggregate_proof": { "version": "1.0.0", "vkVersion": 1 },
-    "set_membership": { "version": "1.0.0", "vkVersion": 1 }
+    "set_membership": { "version": "1.0.0", "vkVersion": 1 },
+    "composite_eligibility": { "version": "1.0.0", "vkVersion": 1 }
   }
 }
