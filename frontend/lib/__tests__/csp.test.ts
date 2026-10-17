@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { generateNonce, buildCsp } from "../csp.mjs";
+import {
+  generateNonce,
+  buildCsp,
+  CSP_REPORT_PATH,
+  CSP_REPORT_GROUP,
+} from "../csp.mjs";
 
 const GOLDEN_CSP_WC_OFF_RPC_OFF =
   "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://stellar.creit.tech https://storage.herewallet.app; connect-src 'self' https://soroban-testnet.stellar.org https://soroban-mainnet.stellar.org;";
@@ -83,6 +88,15 @@ describe("CSP builder", () => {
       for (const directive of strictDirectives) {
         expect(nonStrictCsp).not.toContain(directive);
       }
+    });
+
+    it("throws an error when strict is true and nonce is falsy", () => {
+      expect(() => buildCsp({ strict: true })).toThrow(
+        "buildCsp: strict mode requires a nonce",
+      );
+      expect(() => buildCsp({ strict: true, nonce: "" })).toThrow(
+        "buildCsp: strict mode requires a nonce",
+      );
     });
   });
 
@@ -192,6 +206,11 @@ describe("CSP builder", () => {
       });
       expect(withReportNonStrict).toContain(`report-uri ${endpoint}`);
       expect(withReportNonStrict).toContain("report-to csp-endpoint");
+    });
+
+    it("exports CSP_REPORT_PATH and CSP_REPORT_GROUP constants", () => {
+      expect(CSP_REPORT_PATH).toBe("/api/csp-report");
+      expect(CSP_REPORT_GROUP).toBe("csp-endpoint");
     });
   });
 });

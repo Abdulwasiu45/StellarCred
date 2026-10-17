@@ -6,6 +6,12 @@ import { logger, stripSensitiveFields } from "@/lib/logger";
 import { plaidAccessTokens } from "@/lib/plaid";
 import { reportError } from "@/lib/error-reporting";
 import { locales, defaultLocale, type Locale } from "@/i18n.config";
+import {
+  buildCsp,
+  generateNonce,
+  CSP_REPORT_PATH,
+  CSP_REPORT_GROUP,
+} from "@/lib/csp.mjs";
 
 function resolveRequestId(inbound: string | null | undefined): string {
   const REQUEST_ID_RE = /^[a-zA-Z0-9_-]{1,64}$/;
@@ -37,8 +43,21 @@ export function middleware(request: NextRequest) {
       }
     }
 
+    // NEXT_PUBLIC_* values are inlined at build time in middleware, unlike headers() in
+    // next.config.mjs, so they must be set at build time for the gating to match.
+    const nonce = generateNonce();
+    const policy = buildCsp({
+      strict: true,
+      nonce,
+      walletConnectEnabled: Boolean(process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID),
+      rpcUrl: process.env.NEXT_PUBLIC_RPC_URL,
+      reportEndpoint: CSP_REPORT_PATH,
+    });
+
     const requestHeaders = new Headers(request.headers);
     requestHeaders.set("x-next-intl-locale", locale);
+    requestHeaders.set("x-nonce", nonce);
+    requestHeaders.set("Content-Security-Policy-Report-Only", policy);
 
     let response: NextResponse;
     if (targetPath !== pathname) {
@@ -57,6 +76,11 @@ export function middleware(request: NextRequest) {
       });
     }
 
+    response.headers.set("Content-Security-Policy-Report-Only", policy);
+    response.headers.set(
+      "Reporting-Endpoints",
+      `${CSP_REPORT_GROUP}="${CSP_REPORT_PATH}"`,
+    );
     response.cookies.set("NEXT_LOCALE", locale, { path: "/", maxAge: 31536000, sameSite: "lax" });
     return response;
   }

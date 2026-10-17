@@ -4,6 +4,9 @@
  * Edge-safe: uses only Web Crypto API (crypto.getRandomValues) and btoa.
  */
 
+export const CSP_REPORT_PATH = "/api/csp-report";
+export const CSP_REPORT_GROUP = "csp-endpoint";
+
 /**
  * Generates a cryptographically random 16-byte nonce encoded in Base64.
  *
@@ -39,6 +42,10 @@ export function buildCsp(options = {}) {
     reportEndpoint,
   } = options;
 
+  if (strict && !nonce) {
+    throw new Error("buildCsp: strict mode requires a nonce");
+  }
+
   const wcEnabled = Boolean(walletConnectEnabled);
 
   // 'wasm-unsafe-eval' in script-src is required for WASM instantiation and
@@ -46,9 +53,7 @@ export function buildCsp(options = {}) {
   // In strict mode, do not use 'strict-dynamic', because it would ignore 'self'
   // and complicate the /bb/* and /workers/proof-worker.js loading.
   const scriptSrc = strict
-    ? (nonce
-        ? `script-src 'self' 'nonce-${nonce}' 'wasm-unsafe-eval'`
-        : "script-src 'self' 'wasm-unsafe-eval'")
+    ? `script-src 'self' 'nonce-${nonce}' 'wasm-unsafe-eval'`
     : "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'";
 
   const csp = [
@@ -97,7 +102,7 @@ export function buildCsp(options = {}) {
 
   if (reportEndpoint) {
     csp.push(`report-uri ${reportEndpoint}`);
-    csp.push("report-to csp-endpoint");
+    csp.push(`report-to ${CSP_REPORT_GROUP}`);
   }
 
   return csp.join("; ") + ";";

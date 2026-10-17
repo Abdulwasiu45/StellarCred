@@ -1,5 +1,6 @@
 import "./globals.css";
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import localFont from "next/font/local";
 import { OnboardingTour } from "@/components/OnboardingTour";
 import { NextIntlClientProvider } from "next-intl";
@@ -77,6 +78,8 @@ export default async function RootLayout({
     messages = {};
   }
 
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
+
   return (
     <html
       lang={locale}
@@ -86,6 +89,7 @@ export default async function RootLayout({
       <head>
         <script
           id="theme-detection"
+          nonce={nonce}
           dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }}
         />
         <LocaleMetaTags locale={locale as Locale} />
