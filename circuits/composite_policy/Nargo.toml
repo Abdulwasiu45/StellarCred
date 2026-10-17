@@ -1,8 +1,8 @@
 [package]
 name = "composite_policy"
 type = "lib"
-authors = ["Noir Contributors"]
-compiler_version = ">=0.30.0"
-description = "Bounded composite eligibility policy circuit: proves a fixed-shape boolean formula (AND/OR of threshold and membership checks) over multiple committed attributes and reveals only the pass/fail result."
+authors = ["ZeroKnowledge"]
+compiler-version = "0.31.0"
 
-[dependencies]
+#[dependencies]
+#noirlbs = { path = "../../noirlibs" }

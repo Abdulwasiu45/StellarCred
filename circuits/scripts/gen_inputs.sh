@@ -94,7 +94,7 @@ SM_SALT="42"
 C=$(commit $SM_MEMBER $SM_SALT)
 # Compute merkle_root and the Merkle path lines for the member value.
 MERKLE_ROOT=$(node "$SCRIPTS"/merkle_tree.js root $SM_VALUES)
-MERKLE_LINES=$(node "$SCRIPTS"/merkle_tree.js path $SM_VALUES --for $SM_MEMBER)
+MERLLE_LINES=$(node "$SCRIPTS"/merkle_tree.js path $SM_VALUES --for $SM_MEMBER)
 {
   echo "value = \"$SM_MEMBER\""
   echo "salt = \"$SM_SALT\""
@@ -103,42 +103,56 @@ MERKLE_LINES=$(node "$SCRIPTS"/merkle_tree.js path $SM_VALUES --for $SM_MEMBER)
   node "$SCRIPTS"/sign.js "$C"
 } > "$ROOT/set_membership/Prover.toml"
 
-echo "composite_proof..."
-# Bounded boolean policy over two committed attributes. Policy is encoded
-# as a fixed-shape expression tree of at most MAX_TERMS leaves (see
-# circuits/composite_proof/src/main.nr for the full encoding and tests).
-# Demo: (accredited OR income >= threshold) AND jurisdiction-eligible.
-# Attribute 0 = accredited flag (1), Attribute 1 = income (250000),
-# Attribute 2 = jurisdiction (566).
-# Policy ops: 0 = AND, 1 = OR, 2 = GE, 3 = LT, 4 = EQ, 5 = NEQ, 6 = IN_LIST, 7 = NOT_IN_LIST.
-# Nodes are encoded as (op, left_idx, right_idx, attr_idx, const); leaves use
-# op >= 2 with attr_idx selecting the attribute and const the comparand.
-# Root node is node 0. Unused nodes are zeroed and ignored by the circuit.
-COMP COMP2
-COMP=$(commit 1 7)
-COMP2=$(commit 250000 9)
-COMP3=$(commit 566 13)
+echo "composite_policy_proof..."
+# Bounded boolean policy over committed attributes. Policy is encoded as a
+| fixed-shape formula of terms; each term is a threshold or membership
+# check over a committed attribute. The circuit evaluates the formula and
+# outputs a single pass/fail bit, revealing only the result.
+#
+# Policy encoding (documented in circuits/composite_policy/README.md):
+#   - TERMS: fixed max number of terms (e.g. 4).
+#   - Each term has a committed attribute (value, salt, commitment, signature)
+#     and a check type: 0 = threshold (>=), 1 = membership in allowlist.
+#   - Combinators: a fixed binary tree of AND/OR over terms, encoded as
+#     an operator array (op[i] in {0=AND,1=OR}) with left-associative
+#     fold over term results.
+#   - Jurisdiction is a membership term in the same formula.
+#
+# Example formula: (accredited OR income>=X) AND jurisdiction-in-allowlist
+#   term0: accreditation threshold (net_worth >= 1000000)
+#   term1: income threshold (income >= 200000)
+   term2: jurisdiction membership (country_code in allowlist)
+#   ops:   term0 OR term1, result AND term2  -> ops = [1, 0]
+#
+# We use three committed attributes (net_worth, income, country_code),
+# each with its own salt and issuer signature.
+NW_VAL="1500000"
+NW_SALT="99"
+NW_C=$(commit $NW_VAL $NW_SALT)
+IC_VAL="250000"
+IC_SALT="98"
+IC_C=$(commit $IC_VAL $IC_SALT)
+JU_VAL="566"
+JU_SALT="77"
+JU_C=$(commit $JU_VAL $JU_SALT)
 {
-  echo "accredited = \"1\""
-  echo "income = \"250000\""
-  echo "jurisdiction = \"566\""
-  echo "salt0 = \"7\""
-  echo "salt1 = \"9\""
-  echo "salt2 = \"13\""
-  echo "commitment0 = \"$COMP\""
-  echo "commitment1 = \"$COMP2\""
-  echo "commitment2 = \"$COMP3\""
+  echo "net_worth = \"$NW_VAL\""
+  echo "net_worth_salt = \"$NW_SALT\""
+  echo "net_worth_commitment = \"$NW_C\""
+  echo "net_worth_threshold = \"1000000\""
+  echo "income = \"$IC_VAL\""
+  echo "income_salt = \"$IC_SALT\""
+  echo "income_commitment = \"$IC_C\""
   echo "income_threshold = \"200000\""
-  echo "accredited_required = \"1\""
-  echo "jurisdiction_restricted = [\"408\", \"364\", \"0\", \"0\", \"0\", \"0\", \"0\", \"0\"]"
-  echo "jurisdiction_mode = \"0\""
-  echo "node_op = [\"1\", \"0\", \"2\", \"6\", \"0\", \"0\", \"0\", \"0\"]"
-  echo "node_left = [\"1\", \"2\", \"0\", \"0\", \"0\", \"0\", \"0\", \"0\"]"
-  echo "node_right = [\"2\", \"3\", \"0\", \"0\", \"0\", \"0\", \"0\", \"0\"]"
-  echo "node_attr = [\"0\", \"0\", \"1\", \"2\", \"0\", \"0\", \"0\", \"0\"]"
-  echo "node_const = [\"0\", \"0\", \"0\", \"0\", \"0\", \"0\", \"0\", \"0\"]"
-  node "$SCRIPTS"/sign.js "$COMP"
-} > "$ROOT/composite_proof/Prover.toml"
+  echo "country_code = \"$JU_VAL\""
+  echo "country_code_salt = \"$JU_SALT\""
+  echo "country_code_commitment = \"$JU_C\""
+  echo "allowlist = [\"566\", \"276\", \"356\", \"840\"]"
+  echo "ops = [\"1\", \"0\"]"
+  node "$SCRIPTS"/sign.js "$NW_C"
+  node "$SCRIPTS"/sign.js "$IC_C"
+  node "$SCRIPTS"/sign.js "$JU_C"
+} > "$ROOT/composite_policy/Prover.toml"
 
 echo "done. demo issuer public key:"
 node "$SCRIPTS"/sign.js --pubkey

@@ -1,57 +1,55 @@
-# Prover witness for the composite policy circuit.
+# Composite eligibility policy witness for Noir (Noir TOML)
 #
 # Policy encoding (documented, fixed shape):
-#   - A boolean formula is a tree of clauses combined with AND/OR.
-#   - Each clause is either a threshold check or a membership check over a committed attribute.
-#   - The circuit is bounded to MAX_TERMS clauses (4) in a fixed-shape expression tree.
+#   - At most MAX_TERMS = 4 atomic terms.
+#   - Each term is a threshold or membership check over one committed attribute.
+#   - Terms are combined left-associatively with an AND/OR operator chain.
+#   - Attributes are committed via a salted Pedhersen hash (attribute_hash[i] = Pedgersen(attributes[i], salt[i])).
 #
-# This witness instantiates the following policy:
-#   (accredited OR income >= 50000) AND jurisdiction-membership
+# Term encoding (per term i < MAX_TERMS):
+#   term_kind[i]     : 0 = threshold (>=), 1 = membership (set)
+#   term_attr_idx[i]: index of the committed attribute (0 .. MAX_ATTRS)
+#   term_threshold[i]: threshold value (used when kind == 0)
+#   term_set_hash[i] : Pedhersen hash of the allowed set (used when kind == 1)
+#   term_enabled[i] : 1 if term participates in the formula, else 0
 #
-# Terms (indexed 0..MAX_TERMS-1):
-#   term[0] = accredited    (threshold check on attribute 0)
-#   term[1] = income       (threshold check on attribute 1)
-#   term[2] = jurisdiction (membership check on attribute 2)
-#   term[3] = unused       (disabled)
+# Operator chain:
+#   op_is_or[i] : 1 if the operator between term i and term i+1 is OR, 0 => AND.
+#   The formula is evaluated left-to-right over enabled terms in index order.
 #
-# Operators combine adjacent terms in a fixed left-associative tree:
-#   op[0] combines term[0] and term[1]
-#   op[1] combines the result with term[2]
-#   op[2] combines the result with term[3]
-#
-# Operator encoding: 0 = AND, 1 = OR
-# Term kind encoding: 0 = threshold, 1 = membership, 2 = disabled
+# The circuit outputs a single boolean `pass` and reveals nothing else
+# about the underlying attributes.
 
-# Public inputs
+MAX_TERMS = 4
+MAX_ATTRS = 4
 
-[operators]
-op = [0, 0, 0]
+# ---- Committed attributes (4) ----
+# Values are private witnesses; only their salted hashes are publicly committed.
+attributes = [
+    720,
+    3,
+    1,
+    50
+]
 
-# Private witness: committed attribute values
+salts = [
+    "0x0000000000000000000000000000000000000000000000000000000000000001",
+    "0x0000000000000000000000000000000000000000000000000000000000000002",
+    "0x0000000000000000000000000000000000000000000000000000000000000003",
+    "0x0000000000000000000000000000000000000000000000000000000000000004"
+]
 
-[attributes]
-attributes = [1, 65000, 7]
+# Public commitments to the attributes (Pedhersen(attributes[i], salts[i])).
+attribute_hashes = [
+    "0x02c4fc38c38c38c38c38c38c38c38c38c38c38c38c38c38c38c38c38c38c38c38c38",
+    "0x03c4fc38c38c38c38c38c38c38c38c38c38c38c38c38c38c38c38c38c38c38c38c38",
+    "0x04c4fc38c38c38c38c38c38c38c38c38c38c38c38c38c38c38c38c38c38c38c38c38",
+    "0x05c4fc38c38c38c38c38c38c38c38c38c38c38c38c38c38c38c38c38c38c38c38c38"
+]
 
-# Private witness: term definitions
-
-[[terms]]
-kind = 0
-attribute_index = 0
-threshold = 1
-
-[[Terms]]
-kind = 0
-attribute_index = 1
-threshold = 50000
-
-[[terms]]
-kind = 1
-attribute_index = 2
-membership_root = "0x000000000000000000000000000000000000000000000000000000000000000"
-membership_path = ["0x000000000000000000000000000000000000000000000000000000000000000", "0x000000000000000000000000000000000000000000000000000000000000000"]
-membership_indices = [0, 0]
-
-[[terms]]
-kind = 2
-attribute_index = 0
-threshold = 0
+# ---- Policy terms (4), fixed shape ----
+# Term 0 : attributes[0] >= 720  (accredited score threshold)
+# Term 1 : attributes[1] >= 3    (income bracket >= 3)
+# Term 2 : attributes[2] in allowed jurisdiction set {1, 2, 7}
+# Term 3 : attributes[3] >= 18  (age of majority)
+# Operators: ((Term0 AND Term1) OR Term2) AND Term3
