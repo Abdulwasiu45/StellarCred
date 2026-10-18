@@ -1,7 +1,6 @@
 import "./globals.css";
 import type { Metadata } from "next";
 import localFont from "next/font/local";
-import nextDynamic from "next/dynamic";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 import { SiteNav } from "@/components/SiteNav";
@@ -13,19 +12,10 @@ import { WalletProvider } from "@/lib/wallet-context";
 import { ToastProvider } from "@/components/Toast";
 import { THEME_BOOT_SCRIPT } from "@/lib/theme";
 import type { Locale } from "@/i18n.config";
-
-// OnboardingWizard and OnboardingTour are interactive-only overlays — never
-// needed for the initial server render. Loading them dynamically keeps their
-// ~20 kB icon + animation weight out of the root layout's critical JS path.
-const OnboardingTour = nextDynamic(
-  () => import("@/components/OnboardingTour").then((m) => m.OnboardingTour),
-  { ssr: false },
-);
-
-const OnboardingWizard = nextDynamic(
-  () => import("@/components/OnboardingWizard").then((m) => m.OnboardingWizard),
-  { ssr: false },
-);
+// OnboardingTour and OnboardingWizard are deferred via next/dynamic(ssr:false)
+// inside this client wrapper. next/dynamic with ssr:false cannot be used
+// directly in a Server Component, so the call lives in a "use client" boundary.
+import { OnboardingOverlays } from "@/components/OnboardingOverlays";
 
 // Fonts are vendored as latin-subset variable woff2 files (from Google Fonts)
 // instead of next/font/google: the google loader downloads at build time,
@@ -109,11 +99,10 @@ export default async function RootLayout({
         <NextIntlClientProvider messages={messages} locale={locale}>
           <ToastProvider>
             <WalletProvider>
-              <OnboardingTour />
+              <OnboardingOverlays />
               <SiteNav />
               <NetworkBanner />
               <RpcStatusBanner />
-              <OnboardingWizard />
               <main id="main-content" tabIndex={-1} className="container">
                 {children}
               </main>
