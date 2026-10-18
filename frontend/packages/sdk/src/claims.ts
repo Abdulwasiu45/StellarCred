@@ -9,7 +9,7 @@
 // from here, so nothing in this module imports back from those files â€” keeping
 // the module graph acyclic.
 
-import { Client as ProofRegistryClient } from "../../proof-registry/src/index";
+import type { Client as ProofRegistryClient } from "../../proof-registry/src/index";
 import {
   IndexerError,
   evaluateClaimRow,
@@ -585,9 +585,9 @@ async function getClient(throwOnError = false): Promise<ProofRegistryClient | nu
   if (_client && _clientKey === key) return _client;
 
   _clientKey = key;
-  _client = getSdk().then(
-    () =>
-      new ProofRegistryClient({
+  _client = Promise.all([getSdk(), import("../../proof-registry/src/index")]).then(
+    ([, { Client }]) =>
+      new Client({
         networkPassphrase,
         contractId: registryId,
         rpcUrl,

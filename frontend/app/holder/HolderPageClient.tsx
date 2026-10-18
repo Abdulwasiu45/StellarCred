@@ -32,12 +32,12 @@ import { useWallet, usePreviewMode } from "@/lib/wallet-context";
 import { ConfigBanner } from "@/components/ConfigBanner";
 import { useToast } from "@/components/Toast";
 import dynamic from "next/dynamic";
-import CredentialDetailModal from "@/components/CredentialDetailModal";
 import { IMPORT_PARAM } from "@/lib/transfer";
 import { PREVIEW_CREDENTIALS } from "@/lib/preview-fixtures";
 import { useWarmProver } from "@/lib/use-warm-prover";
 import type { Credential } from "@/lib/credential";
-import { DataWipePanel } from "@/components/DataWipePanel";
+const CredentialDetailModal = dynamic(() => import("@/components/CredentialDetailModal"), { ssr: false });
+const DataWipePanel = dynamic(() => import("@/components/DataWipePanel").then((m) => m.DataWipePanel), { ssr: false });
 // ── Hooks ─────────────────────────────────────────────────────────────────────
 import { useCredentialStore } from "@/lib/hooks/useCredentialStore";
 import { useBatchSelection } from "@/lib/hooks/useBatchSelection";

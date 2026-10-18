@@ -16,6 +16,7 @@ import {
   IconSparkles,
   IconHelp,
 } from "@tabler/icons-react";
+import { truncateMiddle } from "@/lib/format";
 import { useWallet } from "@/lib/wallet-context";
 import {
   useOnboarding,
@@ -185,7 +186,7 @@ function ConnectWalletStep() {
             className="mono"
             style={{ fontSize: "0.8rem", color: "var(--muted)" }}
           >
-            {address.slice(0, 6)}…{address.slice(-4)}
+            {truncateMiddle(address, 6, 4)}
           </span>
         </div>
       ) : (

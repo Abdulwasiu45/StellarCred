@@ -138,6 +138,8 @@ npm install @stellarcred/sdk
 > **Canonical Integration Example**: Looking for a complete, runnable end-to-end integration with wallet control challenge proof and server-side route gating? See [`examples/canonical-integration`](examples/canonical-integration).
 >
 > **TypeScript SDK Example**: Minimal TypeScript integration demonstrating typed imports, anti-spoofing challenge verification, and credential-gated Stellar transaction creation and signing. See [`examples/typescript`](examples/typescript).
+>
+> **TypeScript quickstart**: A minimal, CI-typechecked walkthrough — typed claim reads, a signed Stellar transaction, and the challenge flow — is in [`docs/SDK_TYPESCRIPT_EXAMPLE.md`](docs/SDK_TYPESCRIPT_EXAMPLE.md) and [`examples/typescript-quickstart`](examples/typescript-quickstart).
 
 Protocols never handle credential data - they ask the on-chain registry one
 question: _has this wallet proven the claim I require?_
@@ -149,8 +151,6 @@ import { StellarCred } from "@stellarcred/sdk";
 const canDeposit = await StellarCred.hasClaim(wallet, "kyc");
 
 // Threshold claim — enforce minimum on-chain
-const canAccessVault = await StellarCred.hasClaim(wallet, "funds", { minThreshold: 50000 });
-const canTrade = await StellarCred.hasClaim(wallet, "age", { minThreshold: 21 });
 const canAccessVault = await StellarCred.hasClaim(wallet, "funds", {
   minThreshold: 50000,
 });
