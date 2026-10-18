@@ -17,6 +17,9 @@ const processPath = require.resolve("process/browser");
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  experimental: {
+    optimizePackageImports: ["@tabler/icons-react"],
+  },
 
   // (Removed the legacy `optimizeFonts: false` here: Next 16 no longer
   // recognises the key. Build-time font fetches were already avoided by
@@ -171,4 +174,4 @@ const nextConfig = {
   },
 };
 
-export default withBundleReport(withNextIntl(nextConfig));
+export default withBundleReport(withNextIntl(nextConfig));

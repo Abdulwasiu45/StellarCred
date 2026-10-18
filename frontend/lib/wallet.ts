@@ -10,7 +10,6 @@
 
 import {
   StellarWalletsKit,
-  WalletNetwork,
   allowAllModules,
   FREIGHTER_ID,
   type ModuleInterface,
@@ -23,13 +22,13 @@ import {
   WalletConnectAllowedMethods,
   WALLET_CONNECT_ID,
 } from "@creit.tech/stellar-wallets-kit/modules/walletconnect.module";
-import { NETWORK, NETWORK_PASSPHRASE } from "./stellar";
-import { getLedgerModule, LEDGER_ID } from "./ledger-module";
+import { NETWORK_PASSPHRASE } from "./stellar";
+import { getLedgerModule, kitNetworkForPassphrase, LEDGER_ID } from "./ledger-module";
 
-const APP_NETWORK =
-  NETWORK === "mainnet" ? WalletNetwork.PUBLIC :
-  NETWORK === "futurenet" ? WalletNetwork.TESTNET : // kit has no futurenet; fall back to testnet signing
-  WalletNetwork.TESTNET;
+// One shared network mapping (see kitNetworkForPassphrase in ledger-module.ts)
+// — previously duplicated here and in the Ledger module with subtly different
+// inputs (app selector name vs. passphrase equality).
+const APP_NETWORK = kitNetworkForPassphrase(NETWORK_PASSPHRASE);
 
 const CONNECT_TIMEOUT_MS = 30_000;
 const APP_BASE_URL = process.env.NEXT_PUBLIC_STELLARCRED_BASE_URL ?? "https://stellarcred.xyz";

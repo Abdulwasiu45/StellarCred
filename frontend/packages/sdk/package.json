@@ -42,7 +42,9 @@
     "test:integration": "vitest run test/integration.test.ts",
     "typecheck": "tsc --noEmit",
     "docs:api": "typedoc",
-    "prepublishOnly": "pnpm build"
+    "prepublishOnly": "pnpm build",
+    "lint": "eslint src test",
+    "format:check": "prettier --check src test"
   },
   "peerDependencies": {
     "@stellar/stellar-sdk": ">=13.0.0"

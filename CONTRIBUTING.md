@@ -363,12 +363,16 @@ CODEOWNERS routes the *request*; it does not change branch protection. To make a
 
 Please do **not** open a public issue for security vulnerabilities. See [SECURITY.md](SECURITY.md).
 
-## Code style
+## Code style & Linting
 
 - **Rust**: `cargo fmt` before committing. Follow the existing contract structure — cross-contract calls use `#[contractclient]` interface traits, not crate dependencies.
-- **TypeScript**: ESLint + Prettier (enforced by `pnpm lint`). No `NEXT_PUBLIC_` prefix on server-only env vars.
-- **Noir**: keep circuits as simple as possible — constraint count directly affects browser proving time.
-- **Comments**: only when the *why* is non-obvious (a constraint, a workaround, a subtle invariant). Don't explain what the code does.
+- **TypeScript & Web**: ESLint and Prettier are configured across the repository.
+  - Run linting: `pnpm --dir frontend lint` (or `pnpm --dir frontend/packages/sdk lint` for SDK).
+  - Check formatting: `pnpm --dir frontend format:check`.
+  - Auto-format code: `pnpm --dir frontend format`.
+- **Pre-commit hooks**: Husky and `lint-staged` run automatically on staged TypeScript, JavaScript, CSS, and JSON files on `git commit` to maintain format and lint standards.
+- **Noir**: Keep circuits as simple as possible — constraint count directly affects browser proving time.
+- **Comments**: Only when the *why* is non-obvious (a constraint, a workaround, a subtle invariant). Don't explain what the code does.
 
 ## Commit messages
 
@@ -396,6 +400,23 @@ chore: bump soroban-sdk to 26.0.1
 Breaking changes: add `BREAKING CHANGE:` in the commit footer, or append `!` after the type (`feat!:`).
 
 Commit messages are linted automatically on pull requests via `commitlint`.
+
+## Automated Dependency Updates & Auto-Merge Policy
+
+To keep dependencies secure and current without manual overhead, minor and patch dependency updates are automatically merged when all test suites pass.
+
+### Auto-Merge Criteria
+Pull requests are automatically evaluated and merged when:
+1. The PR carries the configured auto-merge label (default: `deps` or `dependencies`).
+2. All CI workflows and status checks pass (green build).
+3. The PR only modifies dependency manifests and lockfiles (`package.json`, `pnpm-lock.yaml`, `Cargo.toml`, `Cargo.lock`, etc.).
+
+### Safeguards & Threshold Rules
+To prevent breaking changes and supply chain regressions, strict threshold rules are enforced:
+- **Major Version Bumps Blocked:** Any update that increments the major semver version (e.g. `v1.2.0` → `v2.0.0`, or breaking `0.x` transitions such as `0.1.0` → `0.2.0`) is **strictly barred** from auto-merging. Major version upgrades require manual maintainer review, audit, and approval.
+- **Pinned Core Dependencies:** Cryptographic and zero-knowledge toolchain dependencies (`@aztec/bb.js`, `@noir-lang/*`, `soroban-sdk`, `ultrahonk_soroban_verifier`) are explicitly pinned in `.github/dependabot.yml` and cannot be bumped automatically.
+- **Source Code Protection:** If a dependency PR contains modifications to application source files (e.g. `src/`, `lib/`, `contracts/`, `circuits/`), auto-merge is immediately rejected.
+- **Configurable Label:** The required label can be configured via repository variable `AUTOMERGE_DEPS_LABEL` (defaulting to `deps`).
 
 ## Releasing
 

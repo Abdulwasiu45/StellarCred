@@ -50,6 +50,12 @@ StellarCred.configure({
 const eligible = await StellarCred.hasClaim(walletAddress, "kyc");
 ```
 
+> **TypeScript example**: a minimal, CI-typechecked walkthrough — typed claim
+> reads, creating and signing a transaction, and the challenge flow — lives in
+> [`examples/typescript-quickstart`](../../../examples/typescript-quickstart) and
+> is explained in
+> [`docs/SDK_TYPESCRIPT_EXAMPLE.md`](../../../docs/SDK_TYPESCRIPT_EXAMPLE.md).
+
 ## Configuration
 
 Call `configure()` once before any other call, or set environment variables — both approaches work in Node.js, Next.js, and edge runtimes.
@@ -898,4 +904,18 @@ The SDK follows [Semantic Versioning](https://semver.org/). Releases are fully a
    - Generates release notes from conventional commit messages.
    - Creates an official GitHub Release with release artifacts.
    - Publishes `@stellarcred/sdk` with public access to the npm registry using `NPM_TOKEN`.
+
+---
+
+## Tree-Shaking & Bundle Optimization
+
+`@stellarcred/sdk` is designed for minimal bundle overhead across both browser and server applications:
+
+- **`sideEffects: false`**: Configured in `package.json` to enable full dead-code elimination in modern bundlers (Webpack, Vite, Rollup, Next.js).
+- **Subpath entrypoints**:
+  - `import StellarCred from "@stellarcred/sdk"`: Primary client entrypoint.
+  - `import StellarCred from "@stellarcred/sdk/server"`: Node.js and Edge backend runtimes.
+- **Dynamic On-Demand Module Loading**:
+  - Heavy RPC modules and Soroban contract bindings (`@stellar/stellar-sdk` and `proof-registry`) are loaded on-demand via dynamic `import()` only when on-chain contract queries (`hasClaim`, `getClaim`) are executed.
+  - Offline helpers like `buildVerifyUrl()`, `buildBadgeUrl()`, `buildBadgeEmbedCode()`, `CLAIM_TYPES`, `TimeoutError`, and `createClaimGate()` execute with zero network overhead and without loading heavy Soroban dependencies.
 
