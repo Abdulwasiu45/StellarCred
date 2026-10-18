@@ -17,8 +17,9 @@ const processPath = require.resolve("process/browser");
 const nextConfig = {
   reactStrictMode: true,
 
-  // Disable Google Fonts optimization to avoid network errors during build
-  optimizeFonts: false,
+  // (Removed the legacy `optimizeFonts: false` here: Next 16 no longer
+  // recognises the key. Build-time font fetches were already avoided by
+  // `preload: false` on every next/font in app/layout.tsx.)
 
   // The /api/issue route runs Noir server-side to compute the Poseidon
   // commitment. Keep these out of the server bundle so Node require()s them
@@ -26,13 +27,12 @@ const nextConfig = {
   // the WASM from disk with fs. If bundled, webpack picks the "web" build that
   // fetch()es the WASM via a /_next/... URL, which has no base on the server
   // ("Failed to parse URL from /_next/static/media/...wasm").
-  experimental: {
-    serverComponentsExternalPackages: [
-      "@noir-lang/noir_js",
-      "@noir-lang/acvm_js",
-      "@noir-lang/noirc_abi",
-    ],
-  },
+  // (Next 15 renamed this out of `experimental`; Next 16 keeps the stable key.)
+  serverExternalPackages: [
+    "@noir-lang/noir_js",
+    "@noir-lang/acvm_js",
+    "@noir-lang/noirc_abi",
+  ],
 
   // Noir + Barretenberg (bb.js) prove in WASM in the browser. They expect Node
   // globals (Buffer/process) and load WASM modules; these settings make the

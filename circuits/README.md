@@ -1,1 +1,262 @@
-IyBTdGVsbGFyQ3JlZCBDaXJjdWl0cwoKVGhpcyBkb2N1bWVudCBkZXNjcmliZXMgdGhlIHB1YmxpYyBpbnB1dCBsYXlvdXQsIGNvbW1pdG1lbnQgc2NoZW1lcywgYW5kIGNyeXB0b2dyYXBoaWMgY29udmVudGlvbnMgZm9yIGFsbCBTdGVsbGFyQ3JlZCB6ZXJvLWtub3dsZWRnZSBjaXJjdWl0cy4gCgpQcm90b2NvbCBpbnRlZ3JhdG9ycyBhbmQgY3JlZGVudGlhbCBpc3N1ZXJzIGNhbiB1c2UgdGhpcyByZWZlcmVuY2UgdG8gaW50ZXJhY3Qgd2l0aCB0aGUgZGVwbG95ZWQgdmVyaWZpY2F0aW9uIGNvbnRyYWN0cyBhbmQgaXNzdWUgdmFsaWQgY3JlZGVudGlhbHMgd2l0aG91dCBuZWVkaW5nIHRvIHJlYWQgdGhlIE5vaXIgc291cmNlIGNvZGUuCgojIyBDcnlwdG9ncmFwaGljIENvbnZlbnRpb25zCgojIyMgQ29tbWl0bWVudCBTY2hlbWUKQWxsIGNpcmN1aXRzIHVzZSB0aGUgKipQb3NlaWRvbjIqKiBoYXNoIGZ1bmN0aW9uIHRvIGNvbW1pdCB0byB0aGUgdW5kZXJseWluZyBjcmVkZW50aWFsIHZhbHVlLiBUaGUgY29tbWl0bWVudCBpcyBkZXJpdmVkIGFzOgoKYGBgCmNvbW1pdG1lbnQgPSBQb3NlaWRvbjIoW3ZhbHVlLCBzYWx0XSwgMikKYGBgCi0gYHZhbHVlYDogVGhlIG51bWVyaWNhbCByZXByZXNlbnRhdGlvbiBvZiB0aGUgY3JlZGVudGlhbCBhdHRyaWJ1dGUgKHNlZSBgYXR0cmlidXRlVG9WYWx1ZWAgYmVsb3cpLgotIGBzYWx0YDogQSBjcnlwdG9ncmFwaGljYWxseSBzZWN1cmUgcmFuZG9tIGBGaWVsZGAgZWxlbWVudCB0byBwcmV2ZW50IHJhaW5ib3ctdGFibGUgYXR0YWNrcy4KLSBUaGUgb3V0cHV0IGBjb21taXRtZW50YCBpcyBhIHNpbmdsZSBgRmllbGRgIGVsZW1lbnQuCgojIyMgRUNEU0EgU2lnbmluZyBDb252ZW50aW9uCklzc3VlcnMgc2lnbiB0aGUgYGNvbW1pdG1lbnRgIHRvIGF0dGVzdCB0byBpdHMgdmFsaWRpdHkgdXNpbmcgKipzZWNwMjU2azEgRUNEU0EqKi4KLSBQcmVoYXNoOiBmYWxzZS4gVGhlIGNpcmN1aXQgZXhwZWN0cyB0aGUgc2lnbmF0dXJlIG92ZXIgdGhlIHJhdyAzMi1ieXRlIGJpZy1lbmRpYW4gcmVwcmVzZW50YXRpb24gb2YgdGhlIGBjb21taXRtZW50YCwgKm5vdCogYSBzaGEyNTYgaGFzaCBvZiBpdC4gCi0gVGhlIGNpcmN1aXQgdmVyaWZpZXMgdGhlIHNpZ25hdHVyZSBhZ2FpbnN0IHRoZSBpc3N1ZXIncyBwdWJsaWMga2V5IChgaXNzdWVyX3hgIGFuZCBgaXNzdWVyX3lgIGNvb3JkaW5hdGVzKS4KCiMjIyBWZXJpZmllciBLZXkgKFZLKSBEZXRlcm1pbmlzbQpUaGUgVksgZm9yIGVhY2ggY2lyY3VpdCBpcyBzdHJpY3RseSBkZXRlcm1pbmlzdGljIGJhc2VkIG9uIHRoZSBOb2lyIGNpcmN1aXQgbG9naWMgYW5kIHRoZSBleGFjdCBjb21waWxlciB0b29sY2hhaW4gdmVyc2lvbi4gCi0gQ3VycmVudCB0b29sY2hhaW4gdmVyc2lvbiBwaW5uZWQgZm9yIHZlcmlmaWNhdGlvbjogYG5vaXJ1cCAtdiAxLjAuMC1iZXRhLjlgCi0gQW55IGNoYW5nZSB0byB0aGUgTm9pciBzb3VyY2UgY29kZSBvciB0aGUgY29tcGlsZXIgdmVyc2lvbiB3aWxsIHByb2R1Y2UgYSBkaWZmZXJlbnQgVksuIFRoZSBWSyBkZXBsb3llZCB0byB0aGUgb24tY2hhaW4gYENyZWRlbnRpYWxWZXJpZmllcmAgdmlhIGBzZXRfdmtgIG11c3QgcGVyZmVjdGx5IG1hdGNoIHRoZSBWSyBnZW5lcmF0ZWQgYnkgdGhlIGlzc3VlcnMvcHJvdmVycyB1c2luZyB0aGlzIHBpbm5lZCB0b29sY2hhaW4sIG90aGVyd2lzZSBwcm9vZnMgd2lsbCBmYWlsIHRvIHZlcmlmeS4KCiMjIyBDaXJjdWl0IFZlcnNpb25zCkEgVksgaGFzaCB0ZWxscyB5b3UgdGhlICpieXRlY29kZSogY2hhbmdlZDsgaXQgZG9lcyBub3QgdGVsbCBhIGhvbGRlcidzIGRldmljZSB3aGljaCBjaXJjdWl0IHRoZWlyIGNyZWRlbnRpYWwgYmVsb25ncyB0by4gVGhlIFZLIG9ubHkgZ2FpbnMgaXRzIGlkZW50aXR5IGF0IGRlcGxveSB0aW1lLCBsb25nIGFmdGVyIHRoZSBjcmVkZW50aWFsIHdhcyBtaW50ZWQsIGFuZCBhIGNyZWRlbnRpYWwgaXRzZWxmIGNhcnJpZXMgbm90aGluZyBidXQgdmFsdWUsIHNhbHQsIHNpZ25hdHVyZSBhbmQgY29tbWl0bWVudC4gU28gd2hlbiBhIGNpcmN1aXQgY2hhbmdlIGFsdGVycyB0aGUgcHVibGljLWlucHV0IGxheW91dCwgdGhlIG9ubHkgc3ltcHRvbSBmb3IgYW4gZXhpc3RpbmcgY3JlZGVudGlhbCBpcyBhIGZhaWxlZCBwcm9vZi4KCmBjaXJjdWl0cy9jaXJjdWl0LXZlcnNpb25zLmpzb25gIGlzIHRoZXJlZm9yZSB0aGUgZGVjbGFyZWQgaWRlbnRpdHkgb2YgZXZlcnkgY2lyY3VpdDoKCnwgRmllbGQgfCBNZWFuaW5nIHwKfC0tLS0tLS18LS0tLS0tLS0tfAp8IGB2ZXJzaW9uYCB8IGBNQUpPUi5NSU5PUi5QQVRDSGAuIE1BSk9SIGZvciBhIHB1YmxpYy1pbnB1dCBsYXlvdXQgY2hhbmdlIChleGlzdGluZyBjcmVkZW50aWFscyBiZWNvbWUgdW5wcm92YWJsZSksIE1JTk9SIGZvciBhZGRlZCBjb25zdHJhaW50cyB0aGF0IGtlZXAgdGhlIGxheW91dCwgUEFUQ0ggZm9yIGEgY29tbWVudC90b29saW5nLW9ubHkgZWRpdC4gfAp8IGB2a1ZlcnNpb25gIHwgVGhlIGBDcmVkZW50aWFsVmVyaWZpZXJgIFZLIGNvdW50ZXIgZm9yIHRoYXQgY2lyY3VpdCDigJQgdGhlIGB2ZXJzaW9uYCBhcmd1bWVudCBvZiBgc2V0X3ZrKGNyZWRlbnRpYWxfdHlwZSwgdmVyc2lvbiwgdmspYC4gTW9ub3RvbmljIGZyb20gMS4gfAoKYGNpcmN1aXRzL3NjcmlwdHMvYnVpbGQuc2hgIHN0YW1wcyBib3RoIGludG8gdGhlIGNvbXBpbGVkIGFydGlmYWN0IGl0IHN0YWdlcyAoYGZyb250ZW5kL3B1YmxpYy9jaXJjdWl0cy88dHlwZT4uanNvbmApIGFzIGBjaXJjdWl0X3ZlcnNpb25gIC8gYGNpcmN1aXRfdmtfdmVyc2lvbmAuIFRoZSBhcHAgc3RhbXBzIHRoZSBzYW1lIHBhaXIgb250byBldmVyeSBjcmVkZW50aWFsIGF0IGlzc3VhbmNlIGFuZCByZWZ1c2VzIHRvIHByb3ZlIGEgY3JlZGVudGlhbCB3aG9zZSByZWNvcmRlZCB2ZXJzaW9uIGlzIG5vdCB0aGUgb25lIGl0IHNlcnZlcyDigJQgc28gdGhlIGNoYWluIGNyZWRlbnRpYWwg4oaSIGNpcmN1aXQg4oaSIFZLIGlzIGV4cGxpY2l0LCBhbmQgYW4gaW5jb21wYXRpYmxlIHVwZ3JhZGUgaXMgcmVwb3J0ZWQgYXMgYSBjbGVhciBtZXNzYWdlIGluc3RlYWQgb2YgYW4gaW52YWxpZCB3aXRuZXNzLgoKVGhlIGBjb21taXRgIGFuZCBgY29tbWl0M2AgaGVscGVycyBhcmUgZGVsaWJlcmF0ZWx5IGFic2VudDogdGhleSBhcmUgZXhlY3V0ZWQgdG8gZGVyaXZlIGNvbW1pdG1lbnRzIGFuZCBuZXZlciBwcm92ZW4sIHNvIHRoZXJlIGlzIG5vIFZL-IHRvIHZlcnNpb24gYWdhaW5zdC4KClRoZSBgY29tbWl0YCBhbmQgYGNvbW1pdDNgIGhlbHBlcnMgYXJlIGRlbGliZXJhdGVseSBhYnNlbnQ6IHRoZXkgYXJlIGV4ZWN1dGVkIHRvIGRlcml2ZSBjb21taXRtZW50cyBhbmQgbmV2ZXIgcHJvdmVuLCBzbyB0aGVyZSBpcyBubyBWSyB0byB2ZXJzaW9uIGFnYWluc3QuCgoqKkJ1bXBpbmcgYSBjaXJjdWl0IHZlcnNpb24uKiogRWRpdCB0aGUgZW50cnkgaW4gYGNpcmN1aXRzL2NpcmN1aXQtdmVyc2lvbnMuanNvbmAsIHRoZW46CgpgYGBiYXNoCmV4cG9ydCBQQVRIPSIkSE9NRS8ubmFyZ28vYmluOiRIT01FLy5iYi9iaW46JFBBVEgiCmJhc2ggY2lyY3VpdHMvc2NyaXB0cy9idWlsZC5zaCAgICAgICAgICAgICAgIyByZXN0YW1wcyB0aGUgYXJ0aWZhY3RzCm5vZGUgY2lyY3VpdHMvc2NyaXB0cy90ZXN0dmVjdG9ycy5qcyB1cGRhdGUgIyByZS1waW5zIHRoZSBWSyBoYXNoZXMgLyBwdWJsaWMgaW5wdXRzCmBgYAoKU2tpcHBpbmcgdGhlIGZpcnN0IHN0ZXAgZmFpbHMgQ0k6IGBzdGFtcC1jaXJjdWl0LXZlcnNpb24uanMgY2hlY2stYWxsYCAocnVuIGZyb20gdGhlIGBjaXJjdWl0c2Agam9iKSBhc3NlcnRzIGV2ZXJ5IHN0YWdlZCBhcnRpZmFjdCBjYXJyaWVzIHRoZSB2ZXJzaW9uIHRoZSBtYW5pZmVzdCBkZWNsYXJlcywgYW5kIGB0ZXN0dmVjdG9ycy5qcyBjaGVja2AgZmFpbHMgd2hlbiBhIGNvbW1pdHRlZCB2ZWN0b3IgZGlzYWdyZWVzIHdpdGggdGhlIG1hbmlmZXN0LiBBIGNpcmN1aXQgZWRpdCB0aGF0IGRvZXMgbm90IGJ1bXAgdGhlIHZlcnNpb24gaXMgYSBidWlsZCBmYWlsdXJlLCBub3QgYSBzaWxlbnRseS1zdGFsZSBzdGFtcC4KCllvdSBjYW4gYWxzbyB2ZXJpZnkgdGhlIGNvbW1pdHRlZCBhcnRpZmFjdHMgYXQgYW55IHRpbWU6CgpgYGBiYXNoCm5vZGUgY2lyY3VpdHMvc2NyaXB0cy9zdGFtcC1jaXJjdWl0LXZlcnNpb24uanMgY2hlY2stYWxsIC4uL2Zyb250ZW5kL3B1YmxpYy9jaXJjdWl0cwpgYGAKCiMjIyBUZXN0IFZlY3RvcnMKCmBjaXJjdWl0cy90ZXN0dmVjdG9ycy88Y2lyY3VpdD4uanNvbmAgcGlucywgcGVyIGNpcmN1aXQsIHRoZSBleGFjdCB3aXRuZXNzIGluIGl0cyBjb21taXR0ZWQgYFByb3Zlci50b21sYCwgdGhlIHB1YmxpYyBpbnB1dHMgaXQgZGVyaXZlcywgYW5kIGEgYHNoYTI1NmAgaGFzaCBvZiB0aGUgcmVzdWx0aW5nIEJhcnJldGVuYmVyZyBWSyDigJQgY2FwdHVyZWQgd2l0aCB0aGUgcGlubmVkIHRvb2xjaGFpbiBhYm92ZS4gYGNpcmN1aXRzL3NjcmlwdHMvdGVzdHZlY3RvcnMuanMgY2hlY2tgIChydW4gaW4gQ0kgb24gZXZlcnkgcHVzaC9QUikgcmVjb21waWxlcyBhbmQgcmUtcHJvdmVzIGVhY2ggY2lyY3VpdCBmcm9tIGl0cyBjb21taXR0ZWQgYFByb3Zlci50b21sYCBhbmQgZmFpbHMgdGhlIGJ1aWxkIGlmIGFueSBvZiB0aG9zZSB0aHJlZSBkcmlmdCBmcm9tIHdoYXQncyBjb21taXR0ZWQsIHNvIGEgY2lyY3VpdC1sb2dpYyBjaGFuZ2UsIGEgd2l0bmVzcyBlZGl0LCBvciBhIHRvb2xjaGFpbiBidW1wIHRoYXQgc2lsZW50bHkgY2hhbmdlcyBwcm9vZiBvdXRwdXQgZ2V0cyBjYXVnaHQgaW5zdGVhZCBvZiBzdXJmYWNpbmcgbGF0ZXIgYXMgYW4gb24tY2hhaW4gdmVyaWZpY2F0aW9uIGZhaWx1cmUuCgpUbyByZWdlbmVyYXRlIHRoZSB2ZWN0b3JzIGludGVudGlvbmFsbHkgKGFmdGVyIGEgZGVsaWJlcmF0ZSBjaXJjdWl0IGNoYW5nZSBvciBhIHBpbm5lZCB0b29sY2hhaW4gYnVtcCDigJQgdXBkYXRlIGBOT0lSX1ZFUlNJT05gL2BCQl9WRVJTSU9OYCBpbiBgY2lyY3VpdHMvc2NyaXB0cy90ZXN0dmVjdG9ycy5qc2AgZmlyc3QgaWYgaXQncyB0aGUgbGF0dGVyKToKCmBgYGJhc2gKZXhwb3J0IFBBVEg9IiRIT01FLy5uYXJnby9iaW46JEhPTUUvLmJiL2JpbjokUEFUSCIKbm9kZSBjaXJjdWl0cy9zY3JpcHRzL3Rlc3R2ZWN0b3JzLmpzIHVwZGF0ZQpgYGAKClJldmlldyB0aGUgZGlmZiBiZWZvcmUgY29tbWl0dGluZyDigJQgZXZlcnkgZmllbGQgY2hhbmdpbmcgZXhjZXB0IGB3aXRuZXNzYCB1c3VhbGx5IG1lYW5zIHNvbWV0aGluZyBvdGhlciB0aGFuIHRoZSBpbnRlbmRlZCBjaGFuZ2UgbW92ZWQuIEVhY2ggdmVjdG9yIGFsc28gcGlucyB0aGUgY2lyY3VpdCdzIGRlY2xhcmVkIGBjaXJjdWl0X3ZlcnNpb25gIC8gYGNpcmN1aXRfdmtfdmVyc2lvbmAsIHNvIHJlZ2VuZXJhdGluZyB2ZWN0b3JzIGZvciBhIGNpcmN1aXQgd2hvc2UgdmVyc2lvbiB3YXMgbm90IGJ1bXBlZCBpbiBgY2lyY3VpdHMvY2lyY3VpdC12ZXJzaW9ucy5qc29uYCBpcyByZXBvcnRlZCBhcyBkcmlmdC4gU2VlIFtDaXJjdWl0IFZlcnNpb25zXShAI2NpcmN1aXQtdmVyc2lvbnMpLgoKLS0tCgojIyBgYXR0cmlidXRlVG9WYWx1ZWAgTWFwcGluZwoKVG8gc2VjdXJlbHkgY29tbWl0IHRvIGh1bWFuLXJlYWRhYmxlIGF0dHJpYnV0ZXMsIGlzc3VlcnMgbXVzdCBtYXAgdGhlbSB0byBgRmllbGRgIG9yIGB1NjRgIHZhbHVlczoKCi0gKipLWUMgKGBreWNfcHJvb2ZgKSoqOiBUaGUgdmFsdWUgaXMgYSByYW5kb20gYEZpZWxkYCBlbGVtZW50IGFjdGluZyBhcyBhIHNlY3JldCwgcmVwcmVzZW50aW5nIGEgc3VjY2Vzc2Z1bCBOWUMgdmVyaWZpY2F0aW9uLgotICoqQWdlIChgYWdlX3Byb29mYCkqKjogVGhlIHZhbHVlIGlzIHRoZSBob2xkZXIncyBEYXRlIG9mIEJpcnRoIChET0IpIHJlcHJlc2VudGVkIGFzICoqZGF5cyBzaW5jZSB0aGUgVW5peCBlcG9jaCoqIChlLmcuLCBgSmFuIDEgMTk5MGAgPSBgNzMwNWApLgotICoqSW5jb21lIChgaW5jb21lX3Byb29mYCkqKjogVGhlIHZhbHVlIGlzIHRoZSBob2xkZXIncyBhbm51YWwgaW5jb21lIHJlcHJlc2VudGVkIGFzIGEgYHU2NGMgaW4gd2hvbGUgY3VycmVuY3kgdW5pdHMgKGUuZy4sIHdob2xlIFVTRCkuCi0gKipGdW5kcyAoYGZ1bmRzX3Byb29mYCkqKjogVGhlIHZhbHVlIGlzIHRoZSBob2xkZXIncyBhY2NvdW50IGJhbGFuY2UgcmVwcmVzZW50ZWQgYXMgYSBgdTY0YCBpbiB3aG9sZSBjdXJyZW5jeSB1bml0cy4KLSAqKkFjY3JlZGl0YXRpb24gKGBhY2NyZWRpdGF0aW9uX3Byb29mYCkqKjogVGhlIHZhbHVlIGlzIHRoZSBob2xkZXIncyBuZXQgd29ydGggcmVwcmVzZW50ZWQgYXMgYSBgdTY0YCBpbiB3aG9sZSBjdXJyZW5jeSB1bml0cy4KLSAqKkp1cmlzZGljdGlvbiAoYGp1cmlzZGljdGlvbl9wcm9vZmApKio6IFRoZSB2YWx1ZSBpcyB0aGUgY291bnRyeSBvZiByZXNpZGVuY2UgcmVwcmVzZW50ZWQgYXMgaXRzICoqSVNPIDMxNjYtMSBudW1lcmljKiogY29kZSAoZS5nLiwgVVMgPSBgODQwYCwgSVIgPSBgMzY0YCwgS1AgPSBgNDA4YCkuIFVudXNlZCBzbG90cyBpbiBhIHJlc3RyaWN0ZWQgbGlzdCBhcmUgcGFkZGVkIHdpdGggYDBgLgoKLS0tCgojIyBDaXJjdWl0IFB1YmxpYyBJbnB1dHMKClRoZSBmb2xsb3dpbmcgdGFibGVzIGRlZmluZSB0aGUgQUJJIG9yZGVyIG9mIHB1YmxpYyBpbnB1dHMgZm9yIGVhY2ggY3JlZGVudGlhbCBjaXJjdWl0LgoKIyMjIGBreWNfcHJvb2ZgCnwgSW5kZXggfCBOYW1lIHwgVHlwZSB8IERlc2NyaXB0aW9uIHwKfC0tLS0tLS18LS0tLS0tfC0tLS0tLXwtLS0tLS0tLS0tLS0tfAp8IDAgfCBgY29tbWl0bWVudGAgfCBgRmllbGRgIHwgYFBvc2VpZG9uMihbc2VjcmV0LCBzYWx0XSwgMilgIHwKfCAxIHwgYGlzc3Vlcl94YCB8IGBbdTg7IDMyXWAgfCBJc3N1ZXIgc2VjcDI1NmsxIHB1YmxpYyBrZXkgWCBjb29yZGluYXRlIHwKfCAyIHwgYGlzc3Vlcl95YCB8IGBbdTg7IDMyXWAgfCBJc3N1ZXIgc2VjcDI1NmsxIHB1YmxpYyBrZXkgWSBjb29yZGluYXRlIHwKCiMjIyBgYWdlX3Byb29mYAp8IEluZGV4IHwgTmFtZSB8IFR5cGUgfCBEZXNjcmlwdGlvbiB8CnwtLS0tLS0tfC0tLS0tLXwtLS0tLS18LS0tLS0tLS0tLS0tLXwKfCAwIHwgYGNvbW1pdG1lbnRgIHwgYEZpZWxkYCB8IGBQb3NlaWRvbjIoW2RhdGVfb2ZfYmlydGgsIHNhbHRdLCAyKWAgfAp8IDEgfCBgaXNzdWVyX3hgIHwgYFt1ODsgMzJdYCB8IElzc3VlciBzZWNwMjU2azEgcHVibGljIGtleSBYIGNvb3JkaW5hdGUgfAp8IDIgfCBgaXNzdWVyX3lgIHwgYFt1ODsgMzJdYCB8IElzc3VlciBzZWNwMjU2azEgcHVibGljIGtleSBZIGNvb3JkaW5hdGUgfAp8IDMgfCBgY3VycmVudF9kYXRlYCB8IGB1NjRgIHwgQ3VycmVudCBkYXRlIGFzIGRheXMgc2luY2UgVW5peCBlcG9jaCB8CnwgNCB8IGB0aHJlc2hvbGRfeWVhcnNgIHwgYHU2NGAgfCBNaW5pbXVtIHJlcXVpcmVkIGFnZSBpbiB5ZWFycyB8CgojIyMgYGluY29tZV9wcm9vZmAKfCBJbmRleCB8IE5hbWUgfCBUeXBlIHwgRGVzY3JpcHRpb24gfAp8LS0tLS0tLXwtLS0tLS18LS0tLS0tfC0tLS0tLS0tLS0tLS18CnwgMCB8IGBjb21taXRtZW50YCB8IGBGaWVsZGAgfCBgUG9zZWlkb24yKFtpbmNvbWUsIHNhbHRdLCAyKWAgfAp8IDEgfCBgaXNzdWVyX3hgIHwgYFt1ODsgMzJdYCB8IElzc3VlciBzZWNwMjU2azEgcHVibGljIGtleSBYIGNvb3JkaW5hdGUgfAp8IDIgfCBgaXNzdWVyX3lgIHwgYFt1ODsgMzJdYCB8IElzc3VlciBzZWNwMjU2azEgcHVibGljIGtleSBZIGNvb3JkaW5hdGUgfAp8IDMgfCBgdGhyZXNob2xkYCB8IGB1NjRgIHwgTWluaW11bSByZXF1aXJlZCBhbm51YWwgaW5jb21lIHwKCiMjIyBgZnVuZHNfcHJvb2ZgCnwgSW5kZXggfCBOYW1lIHwgVHlwZSB8IERlc2NyaXB0aW9uIHwKfC0tLS0tLS18LS0tLS0tfC0tLS0tLXwtLS0tLS0tLS0tLS0tfAp8IDAgfCBgY29tbWl0bWVudGAgfCBgRmllbGRgIHwgYFBvc2VpZG9uMihbYmFsYW5jZSwgc2FsdF0sIDIpYCB8CnwgMSB8IGBpc3N1ZXJfeGAgfCBgW3U4OyAzMl1gIHwgSXNzdWVyIHNlY3AyNTZrMSBwdWJsaWMga2V5IFggY29vcmRpbmF0ZSB8CnwgMiB8IGBpc3N1ZXJfeWAgfCBgW3U4OyAzMl1gIHwgSXNzdWVyIHNlY3AyNTZrMSBwdWJsaWMga2V5IFkgY29vcmRpbmF0ZSB8CnwgMyB8IGB0aHJlc2hvbGRgIHwgYHU2NGAgfCBNaW5pbXVtIHJlcXVpcmVkIGFjY291bnQgYmFsYW5jZSB8CgojIyMgYGFjY3JlZGl0YXRpb25fcHJvb2ZgCnwgSW5kZXggfCBOYW1lIHwgVHlwZSB8IERlc2NyaXB0aW9uIHwKfC0tLS0tLS18LS0tLS0tfC0tLS0tLXwtLS0tLS0tLS0tLS0tfAp8IDAgfCBgY29tbWl0bWVudGAgfCBgRmllbGRgIHwgYFBvc2VpZG9uMihbbmV0X3dvcnRoLCBzYWx0XSwgMilgIHwKfCAxIHwgYGlzc3Vlcl94YCB8IGBbdTg7IDMyXWAgfCBJc3N1ZXIgc2VjcDI1NmsxIHB1YmxpYyBrZXkgWCBjb29yZGluYXRlIHwKfCAyIHwgYGlzc3Vlcl95YCB8IGBbdTg7IDMyXWAgfCBJc3N1ZXIgc2VjcDI1NmsxIHB1YmxpYyBrZXkgWSBjb29yZGluYXRlIHwKfCAzIHwgYHRocmVzaG9sZGAgfCBgdTY0YCB8IE1pbmltdW0gcmVxdWlyZWQgbmV0IHdvcnRoIHwKCiMjIyBganVyaXNkaWN0aW9uX3Byb29mYAp8IEluZGV4IHwgTmFtZSB8IFR5cGUgfCBEZXNjcmlwdGlvbiB8CnwtLS0tLS0tfC0tLS0tLXwtLS0tLS18LS0tLS0tLS0tLS0tLXwKfCAwIHwgYGNvbW1pdG1lbnRgIHwgYEZpZWxkYCB8IGBQb3NlaWRvbjIoW2NvdW50cnlfY29kZSwgc2FsdF0sIDIpYCB8CnwgMSB8IGBpc3N1ZXJfeGAgfCBgW3U4OyAzMl1gIHwgSXNzdWVyIHNlY3AyNTZrMSBwdWJsaWMga2V5IFggY29vcmRpbmF0ZSB8CnwgMiB8IGBpc3N1ZXJfeWAgfCBgW3U4OyAzMl1gIHwgSXNzdWVyIHNlY3AyNTZrMSBwdWJsaWMga2V5IFkgY29vcmRpbmF0ZSB8CnwgMyB8IGByZXN0cmljdGVkYCB8IGBbdTY0OyA4XWAgfCBMaXN0IG9mIHVwIHRvIDggSVNPIDMxNjYtMSBudW1lcmljIGNvZGVzIChwYWRkZWQgd2l0aCBgMGBzKSB8CnwgNCB8IGBtb2RlYCB8IGB1NjRgIHwgUHJvb2YgbW9kZTogYDBgID0gZGVueWxpc3QgKGNvdW50cnkgTk9UIGluIGxpc3QpLCBgMWAgPSBhbGxvd2xpc3QgKGNvdW50cnkgSVMgaW4gbGlzdCkgfAoKIyMjIGBjb21wb3NpdGVfcHJvb2ZgCgpBIHNpbmdsZS1wcm9vZiBib29sZWFuIHBvbGljeSBvdmVyIG11bHRpcGxlIGNvbW1pdHRlZCBhdHRyaWJ1dGVzLiBUaGUgY2lyY3VpdCBldmFsdWF0ZXMgYSBmaXhlZC1zaGFwZSBmb3JtdWxhIGFuZCByZXZlYWxzIG9ubHkgdGhlIGZpbmFsIGBwYXNzYCBiaXQg4oCUIG5vIGF0dHJpYnV0ZSB2YWx1ZXMsIHRocmVzaG9sZHMsIG9yIGludGVybWVkaWF0ZSB0ZXJtIHJlc3VsdHMgYXJlIGxlYWtlZC4KCkVhY2ggYXR0cmlidXRlIGlzIGluZGVwZW5kZW50bHkgY29tbWl0dGVkIGFuZCBzaWduZWQgYnkgYW4gaXNzdWVyLCBzbyB0aGUgcHJvb2YgYXR0ZXN0cyB0aGF0IGV2ZXJ5IGxlYWYgaXMgYmFja2VkIGJ5IGEgdmFsaWQgaXNzdWVyIHNpZ25hdHVyZSBvdmVyIGl0cyBjb21taXRtZW50LgoKIyMjIyBQb2xpY3kgZW5jb2RpbmcKClRoZSBwb2xpY3kgaXMgYSB0d28tbGV2ZWwgYm9vbGVhbiBmb3JtdWxhIG92ZXIgYSBib3VuZGVkIG51bWJlciBvZiB0ZXJtczoKCi0gKipNYXggdGVybXM6IDQgY2xhdXNlcyoqIChgTUFYX0NMQVVTRVMgPSA0YCkuIEVhY2ggY2xhdXNlIGlzIGFuIEFORCBvZiB1cCB0byAqKjIgY29tcGFyaXNvbnMqKiAoYE1BWF9DT01QUyA9IDJgKS4gVGhlIGNsYXVzZXMgYXJlIGNvbWJpbmVkIHdpdGggT1IuIFRoaXMgeWllbGRzIGEgZml4ZWQgY2lyY3VpdCBzaGFwZSBvZiBhdCBtb3N0IDggbGVhZiBjb21wYXJpc29ucyBhbmQga2VlcHMgdGhlIGNvbnN0cmFpbnQgY291bnQgYm91bmRlZCBmb3IgcHJvdmFiaWxpdHkuCgpgYGBwYXNzID0gKEMwLmMwICYmIEMwLmMxKSB8fCAoQzEuYzAgJiYgQzEuYzEpIHx8IChDMi5jMCAmJiBDMi5jMSkgfHwgKEMzLmMwICYmIEMzLmMxKQpgYGAKClVudXNlZCBjbGF1c2VzIGFuZCB1bnVzZWQgY29tcGFyaXNvbnMgd2l0aGluIGEgY2xhdXNlIGFyZSBkaXNhYmxlZCBieSBzZXR0aW5nIHRoZWlyIGBvcGAgdG8gYDBgICh0aGUgY2xhdXNlIGlzIHRoZW4gZm9yY2VkIHRydWUgc28gaXQgZG9lcyBub3QgYWZmZWN0IHRoZSBmaW5hbCBPUikuCgpFYWNoIGNvbXBhcmlzb24gaXMgZW5jb2RlZCBhcyBhIHR1cGxlIG9mIHB1YmxpYyBwYXJhbWV0ZXJzOgoKfCBGaWVsZCB8IFR5cGUgfCBNZWFuaW5nIHwKfC0tLS0tLS18LS0tLS0tfC0tLS0tLS0tLXwKfCBgb3BgIHwgYHU2NGAgfCBgMGAgPSBjb21wYXJpc29uIGRpc2FibGVkIChhbHdheXMgdHJ1ZSk7IGAxYCA9IGVuYWJsZWQgfAp8IGBhdHRyaWJ1dGVgIHwgYHU2NGAgfCBXaGljaCBjb21taXR0ZWQgYXR0cmlidXRlIHRoaXMgY29tcGFyaXNvbiByZWFkczogYDBgID0gYWNjcmVkaXRhdGlvbiw+YDFgID0gaW5jb21lLCBgMmAgPSBmdW5kcywgYDMgPSBqdXJpc2RpY3Rpb24sIGA0YCA9IGFnZSAoRE9CIGRheXMpIHwKfCBga2luZGAgfCBgdTY0YCB8IENvbXBhcmlzb24ga2luZDogYDBgID0gYD49IHRocmVzaG9sZGAsIGAxYCA9IGA8PSB0aHJlc2hvbGRgLCBgMmAgPSBtZW1iZXJzaGlwIGluIGBsaXN0YCB8CnwgYHRocmVzaG9sZGAgfCBgdTY0YCB8IFJIUyBvZiB0aGUgYD49YC8gYDw9YCBjb21wYXJpc29uIChpZ25vcmVkIGZvciBtZW1iZXJzaGlwKSB8CnwgYGxpc3RfaWR4YCB8IGB1NjRgIHwgSW5kZXggaW50byB0aGUgc2hhcmVkIGBsaXN0YCBmb3IgbWVtYmVyc2hpcCBjb21wYXJpc29ucyAoaWdub3JlZCBmb3IgdGhyZXNob2xkcykgfAoKVGhlIHNoYXJlZCBtZW1iZXJzaGlwIGxpc3QgaXMgYFtsaXN0OyA4XWAgb2YgSVNPIDMxNjYtMSBudW1lcmljIGNvZGVzLCBwYWRkZWQgd2l0aCBgMGBzLiBBIG1lbWJlcnNoaXAgY29tcGFyaXNvbiBpcyB0cnVlIGlmIHRoZSBhdHRyaWJ1dGUgdmFsdWUgZXF1YWxzIGFueSBub24temVybyBlbnRyeSBpbiB0aGUgbGlzdC4KCkV4YW1wbGUgcG9saWN5IOKAlCAiKGFjY3JlZGl0ZWQgT1IgaW5jb21lID49IDIwMDAwMCkgQU5EIGp1cmlzZGljdGlvbiBpbiB7ODQwLCA4MjZ9IjoKCmBgYHRvbWwKY2xhdXNlcyA9IFsKICBbIHsgb3AgPSAxLCBhdHRyaWJ1dGUgPSAwLCBraW5kID0gMCwgdGhyZXNob2xkID0gMTAwMDAwMCwgbGlzdF9pZHggPSAwIH0sCiAgICB7IG9wID0gMSwgYXR0cmlidXRlID0gMSwga2luZCA9IDAsIHRocmVzaG9sZCA9IDIwMDAwMCwgbGlzdF9pZHggPSAwIH0gXSwKICBbIHsgb3AgPSAxLCBhdHRyaWJ1dGUgPSAzLCBraW5kID0gMiwgdGhyZXNob2xkID0gMCwgbGlzdF9pZHggPSAwIH0sCiAgICB7IG9wID0gMCwgYXR0cmlidXRlID0gMCwga2luZCA9IDAsIHRocmVzaG9sZCA9IDAsIGxpc3RfaWR4ID0gMCB9IF0sCiAgWyB7IG9wID0gMCwgfSwgeyBvcCA9IDAsIH0gXSwKICBbIHsgb3AgPSAwLCB9LCB7IG9wID0gMCwgfSBdLApdCmxpc3QgPSBbODQwLCA4MjYsIDAsIDAsIDAsIDAsIDAsIDBdCmBgYAoKVGhlIHdpdG5lc3MgY2FycmllcyB0aGUgZm91ciBhdHRyaWJ1dGUgdmFsdWVzIGFuZCBzYWx0cyAoYWNjcmVkaXRhdGlvbiwgaW5jb21lLCBmdW5kcywganVyaXNkaWN0aW9uKSwgZWFjaCB3aXRoIGl0cyBvd24gaXNzdWVyIHNpZ25hdHVyZS4gVGhlIGNpcmN1aXQgcmVjb21wdXRlcyBlYWNoIGNvbW1pdG1lbnQsIHZlcmlmaWVzIGVhY2ggRUNEU0Egc2lnbmF0dXJlLCBldmFsdWF0ZXMgdGhlIHBvbGljeSwgYW5kIGFzc2VydHMgYHBhc3MgPT0gMWAuCgpUaGUgcHVibGljIGlucHV0cyBmb3IgYGNvbXBvc2l0ZV9wcm9vZmAgYXJlOgoKfCBJbmRleCB8IE5hbWUgfCBUeXBlIHwgRGVzY3JpcHRpb24gfAp8LS0tLS0tLXwtLS0tLS18LS0tLS0tfC0tLS0tLS0tLS0tLS18CnwgMCB8IGBjb21taXRtZW50X2FjY3JlZGl0YXRpb25gIHwgYEZpZWxkYCB8IGBQb3NlaWRvbjIoW25ldF93b3J0aCwgc2FsdF0sIDIpYCB8CnwgMSB8IGBjb21taXRtZW50X2luY29tZWAgfCBgRmllbGRgIHwgYFBvc2VpZG9uMihbaW5jb21lLCBzYWx0XSwgMilgIHwKfCAyIHwgYGNvbW1pdG1lbnRfZnVuZHNgIHwgYEZpZWxkYCB8IGBQb3NlaWRvbjIoW2JhbGFuY2UsIHNhbHRdLCAyKWAgfAp8IDMgfCBgY29tbWl0bWVudF9qdXJpc2RpY3Rpb25gIHwgYEZpZWxkYCB8IGBQb3NlaWRvbjIoW2NvdW50cnlfY29kZSwgc2FsdF0sIDIpYCB8CnwgNCB8IGBpc3N1ZXJfeGAgfCBgW3U4OyAzMl1gIHwgSXNzdWVyIHNlY3AyNTZrMSBwdWJsaWMga2V5IFggY29vcmRpbmF0ZSAoc2hhcmVkIGFjcm9zcyBhbGwgYXR0cmlidXRlcykgfAp8IDUgfCBgaXNzdWVyX3lgIHwgYFt1ODsgMzJdYCB8IElzc3VlciBzZWNwMjU2azEgcHVibGljIGtleSBZIGNvb3JkaW5hdGUgKHNoYXJlZCBhY3Jvc3MgYWxsIGF0dHJpYnV0ZXMpIHwKfCA2IHwgYGNsYXVzZXNgIHwgYFtbQ29tcGFyaXNvbjsgMl07IDRdYCB8IEZvdXIgY2xhdXNlcywgdHdvIGNvbXBhcmlzb25zIGVhY2ggKHRoZSBwb2xpY3kgZW5jb2RpbmcgYWJvdmUpIHwKfCA3IHwgYGxpc3RgIHwgYFt1NjQ7IDhdYCB8IFNoYXJlZCBtZW1iZXJzaGlwIGxpc3QgKElTTyAzMTY2LTEgbnVtZXJpYywgcGFkZGVkIHdpdGggYDBgcykgfAp8IDggfCBgcGFzc2AgfCBgYm9vbGAgfCBUaGUgc2luZ2xlIHJldmVhbGVkIHJlc3VsdCBvZiB0aGUgcG9saWN5IGV2YWx1YXRpb24gfAo=
+# StellarCred Circuits
+
+This document describes the public input layout, commitment schemes, and cryptographic conventions for all StellarCred zero-knowledge circuits. 
+
+Protocol integrators and credential issuers can use this reference to interact with the deployed verification contracts and issue valid credentials without needing to read the Noir source code.
+
+## Cryptographic Conventions
+
+### Commitment Scheme
+All circuits use the **Poseidon2** hash function to commit to the underlying credential value. The commitment is derived as:
+```
+commitment = Poseidon2([value, salt], 2)
+```
+- `value`: The numerical representation of the credential attribute (see `attributeToValue` below).
+- `salt`: A cryptographically secure random `Field` element to prevent rainbow-table attacks.
+- The output `commitment` is a single `Field` element.
+
+### ECDSA Signing Convention
+Issuers sign the `commitment` to attest to its validity using **secp256k1 ECDSA**.
+- **Prehash**: `false`. The circuit expects the signature over the raw 32-byte big-endian representation of the `commitment`, *not* a sha256 hash of it. 
+- The circuit verifies the signature against the issuer's public key (`issuer_x` and `issuer_y` coordinates).
+
+### Verifier Key (VK) Determinism
+The VK for each circuit is strictly deterministic based on the Noir circuit logic and the exact compiler toolchain version. 
+- Current toolchain version pinned for verification: `noirup -v 1.0.0-beta.9`
+- Any change to the Noir source code or the compiler version will produce a different VK. The VK deployed to the on-chain `CredentialVerifier` via `set_vk` must perfectly match the VK generated by the issuers/provers using this pinned toolchain, otherwise proofs will fail to verify.
+
+### Circuit Versions
+A VK hash tells you the *bytecode* changed; it does not tell a holder's device which circuit their credential belongs to. The VK only gains an identity at deploy time, long after the credential was minted, and a credential itself carries nothing but value, salt, signature and commitment. So when a circuit change alters the public-input layout, the only symptom for an existing credential is a failed proof.
+
+`circuits/circuit-versions.json` is therefore the declared identity of every circuit:
+
+| Field | Meaning |
+|-------|---------|
+| `version` | `MAJOR.MINOR.PATCH`. MAJOR for a public-input layout change (existing credentials become unprovable), MINOR for added constraints that keep the layout, PATCH for a comment/tooling-only edit. |
+| `vkVersion` | The `CredentialVerifier` VK counter for that circuit — the `version` argument of `set_vk(credential_type, version, vk)`. Monotonic from 1. |
+
+`circuits/scripts/build.sh` stamps both into the compiled artifact it stages (`frontend/public/circuits/<type>.json`) as `circuit_version` / `circuit_vk_version`. The app stamps the same pair onto every credential at issuance and refuses to prove a credential whose recorded version is not the one it serves — so the chain credential → circuit → VK is explicit, and an incompatible upgrade is reported as a clear message instead of an invalid witness.
+
+The `commit` and `commit3` helpers are deliberately absent: they are executed to derive commitments and never proven, so there is no VK to version against.
+
+**Bumping a circuit version.** Edit the entry in `circuits/circuit-versions.json`, then:
+
+```bash
+export PATH="$HOME/.nargo/bin:$HOME/.bb/bin:$PATH"
+bash circuits/scripts/build.sh              # restamps the artifacts
+node circuits/scripts/testvectors.js update # re-pins the VK hashes / public inputs
+```
+
+Skipping the first step fails CI: `stamp-circuit-version.js check-all` (run from the `circuits` job) asserts every staged artifact carries the version the manifest declares, and `testvectors.js check` fails when a committed vector disagrees with the manifest. A circuit edit that does not bump the version is a build failure, not a silently-stale stamp.
+
+You can also verify the committed artifacts at any time:
+
+```bash
+node circuits/scripts/stamp-circuit-version.js check-all ../frontend/public/circuits
+```
+
+### Test Vectors
+
+`circuits/testvectors/<circuit>.json` pins, per circuit, the exact witness in its committed `Prover.toml`, the public inputs it derives, and a `sha256` hash of the resulting Barretenberg VK — captured with the pinned toolchain above. `circuits/scripts/testvectors.js check` (run in CI on every push/PR) recompiles and re-proves each circuit from its committed `Prover.toml` and fails the build if any of those three drift from what's committed, so a circuit-logic change, a witness edit, or a toolchain bump that silently changes proof output gets caught instead of surfacing later as an on-chain verification failure.
+
+To regenerate the vectors intentionally (after a deliberate circuit change or a pinned toolchain bump — update `NOIR_VERSION`/`BB_VERSION` in `circuits/scripts/testvectors.js` first if it's the latter):
+
+```bash
+export PATH="$HOME/.nargo/bin:$HOME/.bb/bin:$PATH"
+node circuits/scripts/testvectors.js update
+```
+
+Review the diff before committing — every field changing except `witness` usually means something other than the intended change moved. Each vector also pins the circuit's declared `circuit_version` / `circuit_vk_version`, so regenerating vectors for a circuit whose version was not bumped in `circuits/circuit-versions.json` is reported as drift. See [Circuit Versions](#circuit-versions).
+
+---
+
+## `attributeToValue` Mapping
+
+To securely commit to human-readable attributes, issuers must map them to `Field` or `u64` values:
+
+- **KYC (`kyc_proof`)**: The value is a random `Field` element acting as a secret, representing a successful KYC verification.
+- **Age (`age_proof`)**: The value is the holder's Date of Birth (DOB) represented as **days since the Unix epoch** (e.g., `Jan 1 1990` = `7305`).
+- **Date range (`date_range`)**: The private value is the issuer-signed credential issuance date in **days since the Unix epoch**. The proof reveals only the inclusive public window, not the exact issuance date.
+- **Income (`income_proof`)**: The value is the holder's annual income represented as a `u64` in whole currency units (e.g., whole USD).
+- **Funds (`funds_proof`)**: The value is the holder's account balance represented as a `u64` in whole currency units.
+- **Accreditation (`accreditation_proof`)**: The value is the holder's net worth represented as a `u64` in whole currency units.
+- **Jurisdiction (`jurisdiction_proof`)**: The value is the country of residence represented as its **ISO 3166-1 numeric** code (e.g., US = `840`, IR = `364`, KP = `408`). Unused slots in a restricted list are padded with `0`.
+
+---
+
+## Circuit Public Inputs
+
+The following tables define the ABI order of public inputs for each credential circuit.
+
+### `kyc_proof`
+| Index | Name | Type | Description |
+|-------|------|------|-------------|
+| 0 | `commitment` | `Field` | `Poseidon2([secret, salt], 2)` |
+| 1 | `issuer_x` | `[u8; 32]` | Issuer secp256k1 public key X coordinate |
+| 2 | `issuer_y` | `[u8; 32]` | Issuer secp256k1 public key Y coordinate |
+
+### `age_proof`
+| Index | Name | Type | Description |
+|-------|------|------|-------------|
+| 0 | `commitment` | `Field` | `Poseidon2([date_of_birth, salt], 2)` |
+| 1 | `issuer_x` | `[u8; 32]` | Issuer secp256k1 public key X coordinate |
+| 2 | `issuer_y` | `[u8; 32]` | Issuer secp256k1 public key Y coordinate |
+| 3 | `current_date` | `u64` | Current date as days since Unix epoch |
+| 4 | `threshold_years` | `u64` | Minimum required age in years |
+
+### `date_range`
+| Index | Name | Type | Description |
+|-------|------|------|-------------|
+| 0 | `commitment` | `Field` | `Poseidon2([issued_at, salt], 2)` |
+| 1 | `issuer_x` | `[u8; 32]` | Issuer secp256k1 public key X coordinate |
+| 2 | `issuer_y` | `[u8; 32]` | Issuer secp256k1 public key Y coordinate |
+| 3 | `window_start` | `u64` | Inclusive start of the accepted issuance window, in days since Unix epoch |
+| 4 | `window_end` | `u64` | Inclusive end of the accepted issuance window, in days since Unix epoch |
+
+Constructing a date-range proof: the issuer commits to and signs the real
+issuance date, the holder picks the widest window their verifier will accept, and
+the holder proves the private date falls inside it. The date, salt and signature
+never leave the witness.
+
+```bash
+# 1. Issuer commits to the real date: commitment = Poseidon2([3650, 12345], 2),
+#    computed with the commit helper circuit.
+printf 'value = "3650"\nsalt = "12345"\n' > circuits/commit/Prover.toml
+(cd circuits/commit && nargo execute)               # prints the commitment
+
+# 2. Issuer signs it (prehash:false; DEMO key — a real issuer keeps its SK private).
+node circuits/scripts/sign.js <commitment-decimal>   # issuer_x / issuer_y / sig
+
+# 3. Holder writes issued_at, salt, sig, commitment plus the chosen window_start and
+#    window_end into date_range/Prover.toml, then compiles, derives the VK and proves.
+export PATH="$HOME/.nargo/bin:$HOME/.bb/bin:$PATH"
+bash circuits/scripts/build.sh date_range
+```
+
+`scripts/gen_inputs.sh` performs steps 1 and 2 for every circuit, including
+`date_range`, and `build.sh` runs it first, so the committed sample witness is
+reproducible. The VK goes to `CredentialVerifier.set_vk("date_range", version, vk)`;
+`date_range` is declared in [circuit-versions.json](circuit-versions.json) as
+`1.0.0` / `vkVersion` 1, and `build.sh` stamps both into the artifact it stages.
+The proving half of `build.sh`, step by step:
+
+```bash
+cd circuits
+nargo compile --package date_range
+nargo execute --package date_range           # writes target/date_range.gz
+bb write_vk --scheme ultra_honk --oracle_hash keccak \
+  --bytecode_path target/date_range.json --output_path date_range/target \
+  --output_format bytes_and_fields           # VK at date_range/target/vk/vk
+bb prove --scheme ultra_honk --oracle_hash keccak \
+  --bytecode_path target/date_range.json --witness_path target/date_range.gz \
+  --output_path date_range/target --output_format bytes_and_fields
+```
+
+`nargo test --package date_range` runs the circuit's unit tests (window
+boundaries, off-by-one, inverted window, zero salt).
+
+`build.sh` stages `fixtures/date_range/{vk,proof,public_inputs}` and
+`frontend/public/circuits/date_range.json`; commit them so the on-chain tests can
+load the same artifacts the contract expects (see `fixtures/set_membership/README.md`
+for the layout), then register a `date_range` credential end to end through
+`ProofRegistry.submit_proof` the way `contracts/proof_registry/src/test.rs` does for
+`kyc`.
+
+The sample `date_range/Prover.toml` proves that the signed date `3650` lies between
+the inclusive bounds `3000` and `4000`. Both bounds are prover-supplied public
+inputs, so the circuit proves the relation, not the policy: a verifier must check
+`window_start` / `window_end` against its own permitted range and ledger time, and
+reject a window wider than its policy allows, since an unbounded window is
+trivially satisfiable and proves nothing.
+
+### `income_proof`
+| Index | Name | Type | Description |
+|-------|------|------|-------------|
+| 0 | `commitment` | `Field` | `Poseidon2([income, salt], 2)` |
+| 1 | `issuer_x` | `[u8; 32]` | Issuer secp256k1 public key X coordinate |
+| 2 | `issuer_y` | `[u8; 32]` | Issuer secp256k1 public key Y coordinate |
+| 3 | `threshold` | `u64` | Minimum required annual income |
+
+### `funds_proof`
+| Index | Name | Type | Description |
+|-------|------|------|-------------|
+| 0 | `commitment` | `Field` | `Poseidon2([balance, salt], 2)` |
+| 1 | `issuer_x` | `[u8; 32]` | Issuer secp256k1 public key X coordinate |
+| 2 | `issuer_y` | `[u8; 32]` | Issuer secp256k1 public key Y coordinate |
+| 3 | `threshold` | `u64` | Minimum required account balance |
+
+### `accreditation_proof`
+| Index | Name | Type | Description |
+|-------|------|------|-------------|
+| 0 | `commitment` | `Field` | `Poseidon2([net_worth, salt], 2)` |
+| 1 | `issuer_x` | `[u8; 32]` | Issuer secp256k1 public key X coordinate |
+| 2 | `issuer_y` | `[u8; 32]` | Issuer secp256k1 public key Y coordinate |
+| 3 | `threshold` | `u64` | Minimum required net worth |
+
+### `jurisdiction_proof`
+| Index | Name | Type | Description |
+|-------|------|------|-------------|
+| 0 | `commitment` | `Field` | `Poseidon2([country_code, salt], 2)` |
+| 1 | `issuer_x` | `[u8; 32]` | Issuer secp256k1 public key X coordinate |
+| 2 | `issuer_y` | `[u8; 32]` | Issuer secp256k1 public key Y coordinate |
+| 3 | `restricted` | `[u64; 8]` | List of up to 8 ISO 3166-1 numeric codes (padded with `0`s) |
+| 4 | `mode` | `u64` | Proof mode: `0` = denylist (country NOT in list), `1` = allowlist (country IS in list) |
+
+### `composite_proof`
+
+A single-proof boolean policy over multiple committed attributes. The circuit evaluates a fixed-shape formula and reveals only the final `pass` bit — no attribute values, thresholds, or intermediate term results are leaked.
+
+Each attribute is independently committed and signed by an issuer, so the proof attests that every leaf is backed by a valid issuer signature over its commitment.
+
+#### Policy encoding
+
+The policy is a two-level boolean formula over a bounded number of terms:
+
+- **Max terms: 4 clauses** (`MAX_CLAUSES = 4`). Each clause is an AND of up to **2 comparisons** (`MAX_COMPS = 2`). The clauses are combined with OR. This yields a fixed circuit shape of at most 8 leaf comparisons and keeps the constraint count bounded for provability.
+
+```pass = (C0.c0 && C0.c1) || (C1.c0 && C1.c1) || (C2.c0 && C2.c1) || (C3.c0 && C3.c1)
+```
+
+Unused clauses and unused comparisons within a clause are disabled by setting their `op` to `0` (the clause is then forced true so it does not affect the final OR).
+
+Each comparison is encoded as a tuple of public parameters:
+
+| Field | Type | Meaning |
+|-------|------|---------|
+| `op` | `u64` | `0` = comparison disabled (always true); `1` = enabled |
+| `attribute` | `u64` | Which committed attribute this comparison reads: `0` = accreditation, `1` = income, `2` = funds, `3` = jurisdiction, `4` = age (DOB days) |
+| `kind` | `u64` | Comparison kind: `0` = `>= threshold`, `1` = `<= threshold`, `2` = membership in `list` |
+| `threshold` | `u64` | RHS of the `>=`/`<=` comparison (ignored for membership) |
+| `list_idx` | `u64` | Index into the shared `list` for membership comparisons (ignored for thresholds) |
+
+The shared membership list is `[list; 8]` of ISO 3166-1 numeric codes, padded with `0`s. A membership comparison is true if the attribute value equals any non-zero entry in the list.
+
+Example policy — "(accredited OR income >= 200000) AND jurisdiction in {840, 826}":
+
+```toml
+clauses = [
+  [ { op = 1, attribute = 0, kind = 0, threshold = 1000000, list_idx = 0 },
+    { op = 1, attribute = 1, kind = 0, threshold = 200000, list_idx = 0 } ],
+  [ { op = 1, attribute = 3, kind = 2, threshold = 0, list_idx = 0 },
+    { op = 0, attribute = 0, kind = 0, threshold = 0, list_idx = 0 } ],
+  [ { op = 0, }, { op = 0, } ],
+  [ { op = 0, }, { op = 0, } ],
+]
+list = [840, 826, 0, 0, 0, 0, 0, 0]
+```
+
+The witness carries the four attribute values and salts (accreditation, income, funds, jurisdiction), each with its own issuer signature. The circuit recomputes each commitment, verifies each ECDSA signature, evaluates the policy, and asserts `pass == 1`.
+
+The public inputs for `composite_proof` are:
+
+| Index | Name | Type | Description |
+|-------|------|------|-------------|
+| 0 | `commitment_accreditation` | `Field` | `Poseidon2([net_worth, salt], 2)` |
+| 1 | `commitment_income` | `Field` | `Poseidon2([income, salt], 2)` |
+| 2 | `commitment_funds` | `Field` | `Poseidon2([balance, salt], 2)` |
+| 3 | `commitment_jurisdiction` | `Field` | `Poseidon2([country_code, salt], 2)` |
+| 4 | `issuer_x` | `[u8; 32]` | Issuer secp256k1 public key X coordinate (shared across all attributes) |
+| 5 | `issuer_y` | `[u8; 32]` | Issuer secp256k1 public key Y coordinate (shared across all attributes) |
+| 6 | `clauses` | `[[Comparison; 2]; 4]` | Four clauses, two comparisons each (the policy encoding above) |
+| 7 | `list` | `[u64; 8]` | Shared membership list (ISO 3166-1 numeric, padded with `0`s) |
+| 8 | `pass` | `bool` | The single revealed result of the policy evaluation |
