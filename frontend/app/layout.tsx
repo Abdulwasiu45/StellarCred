@@ -1,7 +1,7 @@
 import "./globals.css";
 import type { Metadata } from "next";
 import localFont from "next/font/local";
-import { OnboardingTour } from "@/components/OnboardingTour";
+import nextDynamic from "next/dynamic";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 import { SiteNav } from "@/components/SiteNav";
@@ -11,9 +11,21 @@ import { Footer } from "@/components/Footer";
 import { LocaleMetaTags } from "@/components/LocaleMetaTags";
 import { WalletProvider } from "@/lib/wallet-context";
 import { ToastProvider } from "@/components/Toast";
-import { OnboardingWizard } from "@/components/OnboardingWizard";
 import { THEME_BOOT_SCRIPT } from "@/lib/theme";
 import type { Locale } from "@/i18n.config";
+
+// OnboardingWizard and OnboardingTour are interactive-only overlays — never
+// needed for the initial server render. Loading them dynamically keeps their
+// ~20 kB icon + animation weight out of the root layout's critical JS path.
+const OnboardingTour = nextDynamic(
+  () => import("@/components/OnboardingTour").then((m) => m.OnboardingTour),
+  { ssr: false },
+);
+
+const OnboardingWizard = nextDynamic(
+  () => import("@/components/OnboardingWizard").then((m) => m.OnboardingWizard),
+  { ssr: false },
+);
 
 // Fonts are vendored as latin-subset variable woff2 files (from Google Fonts)
 // instead of next/font/google: the google loader downloads at build time,

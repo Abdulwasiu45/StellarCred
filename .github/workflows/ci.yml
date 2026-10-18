@@ -464,6 +464,25 @@ jobs:
             frontend/public
           retention-days: 1
 
+      # Bundle size gate (#737). Runs immediately after the build so any route
+      # or shared-chunk regression fails the frontend job with an actionable
+      # step name rather than being silently skipped (the a11y job is currently
+      # disabled). continue-on-error lets the PR still land while iterating on
+      # size budget values; remove continue-on-error once the baseline is set.
+      - name: Check bundle size budget (#737)
+        run: pnpm size
+        continue-on-error: true
+
+      - name: Report bundle size on PR (#737)
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        uses: andresz1/size-limit-action@94bc357df29c36c8f8d50ea497c3e225c3c95d1d
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          script: pnpm size --json
+          package_manager: pnpm
+          directory: frontend
+
       - name: Test frontend SDK
         run: pnpm test
 
