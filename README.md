@@ -422,7 +422,8 @@ until they reach their natural expiry. If a key is compromised instead, call
 [docs/ISSUER_KEY_ROTATION.md](docs/ISSUER_KEY_ROTATION.md).
 
 > In-browser proving uses cross-origin isolation (COOP/COEP headers in
-> `next.config.mjs`) for multithreading, falling back to single-threaded.
+> `next.config.mjs`) for multithreading, falling back to single-threaded. See
+> [docs/CSP.md](docs/CSP.md) for the Content-Security-Policy configuration and headers.
 
 ### Testnet reset recovery
 
