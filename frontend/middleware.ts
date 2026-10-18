@@ -9,6 +9,7 @@ import { locales, defaultLocale, type Locale } from "@/i18n.config";
 import {
   buildCsp,
   generateNonce,
+  resolveCspMode,
   CSP_REPORT_PATH,
   CSP_REPORT_GROUP,
 } from "@/lib/csp.mjs";
@@ -43,6 +44,12 @@ export function middleware(request: NextRequest) {
       }
     }
 
+    const mode = resolveCspMode(process.env.CSP_MODE);
+    const cspHeaderName =
+      mode === "enforce"
+        ? "Content-Security-Policy"
+        : "Content-Security-Policy-Report-Only";
+
     // NEXT_PUBLIC_* values are inlined at build time in middleware, unlike headers() in
     // next.config.mjs, so they must be set at build time for the gating to match.
     const nonce = generateNonce();
@@ -57,7 +64,7 @@ export function middleware(request: NextRequest) {
     const requestHeaders = new Headers(request.headers);
     requestHeaders.set("x-next-intl-locale", locale);
     requestHeaders.set("x-nonce", nonce);
-    requestHeaders.set("Content-Security-Policy-Report-Only", policy);
+    requestHeaders.set(cspHeaderName, policy);
 
     let response: NextResponse;
     if (targetPath !== pathname) {
@@ -76,7 +83,7 @@ export function middleware(request: NextRequest) {
       });
     }
 
-    response.headers.set("Content-Security-Policy-Report-Only", policy);
+    response.headers.set(cspHeaderName, policy);
     response.headers.set(
       "Reporting-Endpoints",
       `${CSP_REPORT_GROUP}="${CSP_REPORT_PATH}"`,

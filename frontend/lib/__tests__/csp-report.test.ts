@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { sanitizeUrl, normalizeReports } from "../csp-report";
+import { sanitizeUrl, normalizeReports, parseDirective } from "../csp-report";
 
 describe("lib/csp-report", () => {
   describe("sanitizeUrl", () => {
@@ -221,6 +221,33 @@ describe("lib/csp-report", () => {
       expect(normalizeReports({})).toEqual([]);
       expect(normalizeReports({ "csp-report": null })).toEqual([]);
       expect(normalizeReports([null, undefined, "foo", {}])).toEqual([]);
+    });
+
+    it("extracts the first token of effective-directive when directive arguments are present", () => {
+      const payload = {
+        "csp-report": {
+          "document-uri": "https://example.com",
+          "blocked-uri": "inline",
+          "effective-directive": "script-src 'self' 'nonce-abc'",
+          "disposition": "report",
+        },
+      };
+
+      const result = normalizeReports(payload);
+      expect(result).toHaveLength(1);
+      expect(result[0].effectiveDirective).toBe("script-src");
+    });
+  });
+
+  describe("parseDirective", () => {
+    it("takes only the first whitespace-separated token before applying regex", () => {
+      expect(parseDirective("script-src 'self' 'nonce-abc'")).toBe("script-src");
+      expect(parseDirective("  style-src   'unsafe-inline' ")).toBe("style-src");
+      expect(parseDirective("CONNECT-SRC https://example.com")).toBe("connect-src");
+      expect(parseDirective("123-bad-token 'self'")).toBe("unknown");
+      expect(parseDirective("")).toBe("unknown");
+      expect(parseDirective(null)).toBe("unknown");
+      expect(parseDirective(undefined)).toBe("unknown");
     });
   });
 });

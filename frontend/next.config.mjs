@@ -1,7 +1,7 @@
 import { createRequire } from "module";
 import withBundleAnalyzer from "@next/bundle-analyzer";
 import createNextIntlPlugin from "next-intl/plugin";
-import { buildCsp } from "./lib/csp.mjs";
+import { buildCsp, resolveCspMode } from "./lib/csp.mjs";
 
 const withBundleReport = withBundleAnalyzer({
   enabled: process.env.ANALYZE === "true",
@@ -94,13 +94,17 @@ const nextConfig = {
     // lib/wallet.ts only registers WalletConnectModule (and only the app ever
     // opens its relay/verify/explorer traffic) when this is set — keep the CSP
     // minimally permissive for deployments that leave WalletConnect disabled.
+    const mode = resolveCspMode(process.env.CSP_MODE);
     const walletConnectEnabled = Boolean(process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID);
 
-    const csp = buildCsp({
-      strict: false,
-      walletConnectEnabled,
-      rpcUrl: process.env.NEXT_PUBLIC_RPC_URL,
-    });
+    // Build the legacy CSP string (only used when mode !== "enforce").
+    const csp = mode !== "enforce"
+      ? buildCsp({
+          strict: false,
+          walletConnectEnabled,
+          rpcUrl: process.env.NEXT_PUBLIC_RPC_URL,
+        })
+      : null;
 
     // Allow framing for the badge route (#532): it's designed to be embedded
     // in third-party sites via iframe. An optional BADGE_ALLOWED_ORIGINS env
@@ -117,15 +121,15 @@ const nextConfig = {
 
     // buildCsp() returns a joined string ending with ";".
     // Append the frame-ancestors directive for each route variant.
-    const badgeCsp = `${csp} ${badgeFrameAncestors};`;
-    const defaultCsp = `${csp} frame-ancestors 'none';`;
+    const badgeCsp = csp !== null ? `${csp} ${badgeFrameAncestors};` : null;
+    const defaultCsp = csp !== null ? `${csp} frame-ancestors 'none';` : null;
 
     return [
       {
         // Badge route: frameable by default (#532)
         source: "/badge",
         headers: [
-          { key: "Content-Security-Policy", value: badgeCsp },
+          ...(badgeCsp !== null ? [{ key: "Content-Security-Policy", value: badgeCsp }] : []),
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           {
@@ -145,7 +149,7 @@ const nextConfig = {
         // All other routes: deny framing
         source: "/:path*",
         headers: [
-          { key: "Content-Security-Policy", value: defaultCsp },
+          ...(defaultCsp !== null ? [{ key: "Content-Security-Policy", value: defaultCsp }] : []),
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           {
@@ -167,4 +171,4 @@ const nextConfig = {
   },
 };
 
-export default withBundleReport(withNextIntl(nextConfig));
+export default withBundleReport(withNextIntl(nextConfig));

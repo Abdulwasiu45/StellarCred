@@ -8,6 +8,21 @@ export const CSP_REPORT_PATH = "/api/csp-report";
 export const CSP_REPORT_GROUP = "csp-endpoint";
 
 /**
+ * Resolves the CSP operational mode from an environment variable or config value.
+ * Returns "enforce" only when value is exactly the string "enforce" (after .trim().toLowerCase()),
+ * and "report-only" for everything else, including undefined and typos.
+ *
+ * @param {unknown} [value]
+ * @returns {"enforce" | "report-only"}
+ */
+export function resolveCspMode(value) {
+  if (typeof value === "string" && value.trim().toLowerCase() === "enforce") {
+    return "enforce";
+  }
+  return "report-only";
+}
+
+/**
  * Generates a cryptographically random 16-byte nonce encoded in Base64.
  *
  * @returns {string} Base64-encoded nonce.

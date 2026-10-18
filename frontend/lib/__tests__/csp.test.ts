@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   generateNonce,
   buildCsp,
+  resolveCspMode,
   CSP_REPORT_PATH,
   CSP_REPORT_GROUP,
 } from "../csp.mjs";
@@ -211,6 +212,21 @@ describe("CSP builder", () => {
     it("exports CSP_REPORT_PATH and CSP_REPORT_GROUP constants", () => {
       expect(CSP_REPORT_PATH).toBe("/api/csp-report");
       expect(CSP_REPORT_GROUP).toBe("csp-endpoint");
+    });
+  });
+
+  describe("resolveCspMode", () => {
+    it("returns 'enforce' for enforce and case-insensitive/trimmed variations", () => {
+      expect(resolveCspMode("enforce")).toBe("enforce");
+      expect(resolveCspMode(" ENFORCE ")).toBe("enforce");
+    });
+
+    it("fails safe to 'report-only' for everything else", () => {
+      expect(resolveCspMode("report-only")).toBe("report-only");
+      expect(resolveCspMode("")).toBe("report-only");
+      expect(resolveCspMode(undefined)).toBe("report-only");
+      expect(resolveCspMode("yes")).toBe("report-only");
+      expect(resolveCspMode("enforced")).toBe("report-only");
     });
   });
 });

@@ -54,11 +54,11 @@ export interface CspViolation {
   statusCode?: number;
 }
 
-function parseDirective(val: unknown): string {
+export function parseDirective(val: unknown): string {
   if (typeof val === "string") {
-    const normalized = val.toLowerCase().trim();
-    if (/^[a-z-]{1,64}$/.test(normalized)) {
-      return normalized;
+    const firstToken = val.trim().split(/\s+/)[0]?.toLowerCase() ?? "";
+    if (/^[a-z-]{1,64}$/.test(firstToken)) {
+      return firstToken;
     }
   }
   return "unknown";
