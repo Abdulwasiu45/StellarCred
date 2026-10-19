@@ -70,11 +70,23 @@ describe("CSP builder", () => {
       expect(csp).toContain("style-src 'self' 'unsafe-inline'");
     });
 
-    it("strict mode contains all six new directives", () => {
+    it("strict mode adds frame-ancestors, worker-src and manifest-src; both modes share object-src, base-uri and form-action", () => {
       const strictDirectives = [
         "object-src 'none'",
         "base-uri 'self'",
         "form-action 'self'",
+        "frame-ancestors 'none'",
+        "worker-src 'self'",
+        "manifest-src 'self'",
+      ];
+
+      const sharedDirectives = [
+        "object-src 'none'",
+        "base-uri 'self'",
+        "form-action 'self'",
+      ];
+
+      const strictOnlyDirectives = [
         "frame-ancestors 'none'",
         "worker-src 'self'",
         "manifest-src 'self'",
@@ -86,8 +98,13 @@ describe("CSP builder", () => {
       }
 
       const nonStrictCsp = buildCsp({ strict: false });
-      for (const directive of strictDirectives) {
+      for (const directive of strictOnlyDirectives) {
         expect(nonStrictCsp).not.toContain(directive);
+      }
+
+      for (const directive of sharedDirectives) {
+        expect(strictCsp).toContain(directive);
+        expect(nonStrictCsp).toContain(directive);
       }
     });
 
