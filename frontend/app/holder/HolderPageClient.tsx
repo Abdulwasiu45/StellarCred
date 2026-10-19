@@ -200,7 +200,10 @@ function CredCard({
                       >
                         {c.provedTxHash.slice(0, 6)}…<IconExternalLink size={10} />
                       </a>
-                    </>
+                    
+      
+
+    </>
                   )}
                 </>
               )}
@@ -833,7 +836,10 @@ function HolderInner() {
       {importPayload && (
         <TransferImportModal
           payload={importPayload}
-          onImported={(c) => {
+          onImported={(c) =>
+
+      
+ {
             saveCredential(c).then(setCreds);
             setImportPayload(null);
             toast.success(`Imported ${c.title}`);
@@ -844,22 +850,50 @@ function HolderInner() {
 
       {/* Destructive Action Confirmation Modal */}
       {confirmBulkAction && (
-        <div className="modal-backdrop" style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0, 0, 0, 0.75)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }}>
-          <div className="modal-card" style={{ background: "#18181b", border: "1px solid #27272a", borderRadius: "12px", padding: "1.5rem", maxWidth: "420px", width: "90%" }}>
+        <div
+          className="modal-backdrop"
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.75)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: "1rem",
+          }}
+        >
+          <div
+            className="modal-card"
+            style={{
+              background: "#18181b",
+              border: "1px solid #27272a",
+              borderRadius: "12px",
+              padding: "1.5rem",
+              maxWidth: "420px",
+              width: "90%",
+            }}
+          >
             <h3 style={{ marginTop: 0, fontSize: "1.2rem" }}>
-              {confirmBulkAction.type === "clear-expired" ? "Clear Expired Credentials?" : "Remove Selected Credentials?"}
+              {confirmBulkAction.type === "clear-expired"
+                ? "Clear Expired Credentials?"
+                : "Remove Selected Credentials?"}
             </h3>
             <p className="faint" style={{ fontSize: "0.9rem", margin: "1rem 0" }}>
-              Are you sure you want to remove {confirmBulkAction.commitments.length} credential{confirmBulkAction.commitments.length > 1 ? "s" : ""}? This will permanently remove them from your browser&apos;s encrypted local storage.
+              Are you sure you want to remove {confirmBulkAction.commitments.length} credential
+              {confirmBulkAction.commitments.length > 1 ? "s" : ""}? This will permanently remove
+              them from your browser storage.
             </p>
             <div className="row" style={{ justifyContent: "flex-end", gap: "0.75rem" }}>
               <button
+                type="button"
                 className="btn btn-secondary"
                 onClick={() => setConfirmBulkAction(null)}
               >
                 Cancel
               </button>
               <button
+                type="button"
                 className="btn btn-danger"
                 style={{ backgroundColor: "#dc2626", color: "#fff" }}
                 onClick={() => executeBulkRemove(confirmBulkAction.commitments)}
@@ -1276,7 +1310,7 @@ function ProofFlow({
               Submit to Stellar
               <IconArrowRight size={15} />
             </button>
-          </>
+    </>
         )}
 
         {error && (

@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { getCorsHeaders, isOriginAllowed } from "@/lib/cors";
+import { getCorsHeaders, getPublicCorsHeaders, isOriginAllowed, isPublicCorsPath } from "@/lib/cors";
 import { logger, stripSensitiveFields } from "@/lib/logger";
+import { plaidAccessTokens } from "@/lib/plaid";
 import { reportError } from "@/lib/error-reporting";
 import { locales, defaultLocale, type Locale } from "@/i18n.config";
 
@@ -65,11 +66,19 @@ export function middleware(request: NextRequest) {
 
   // Detect demo/mock mode signals
   const isDemoIssuer = !process.env.ISSUER_PRIVATE_KEY;
-  const isPlaidMock = !process.env.PLAID_ACCESS_TOKEN;
+  const isPlaidMock = plaidAccessTokens().length === 0;
   const isPersonaDemo = !process.env.PERSONA_API_KEY;
 
   if (request.method === "OPTIONS") {
     const origin = request.headers.get("origin");
+    if (isPublicCorsPath(request.nextUrl.pathname)) {
+      const response = new NextResponse(null, {
+        status: 204,
+        headers: getPublicCorsHeaders(),
+      });
+      logRequest(request, 204, startTime, requestId, isDemoIssuer, isPlaidMock, isPersonaDemo);
+      return response;
+    }
     if (!isOriginAllowed(origin)) {
       logRequest(request, 204, startTime, requestId, isDemoIssuer, isPlaidMock, isPersonaDemo);
       return new NextResponse(null, { status: 204 });
@@ -84,7 +93,11 @@ export function middleware(request: NextRequest) {
 
   const response = NextResponse.next();
   const origin = request.headers.get("origin");
-  if (isOriginAllowed(origin)) {
+  if (isPublicCorsPath(request.nextUrl.pathname)) {
+    for (const [key, value] of Object.entries(getPublicCorsHeaders())) {
+      response.headers.set(key, value);
+    }
+  } else if (isOriginAllowed(origin)) {
     const corsHeaders = getCorsHeaders();
     for (const [key, value] of Object.entries(corsHeaders)) {
       response.headers.set(key, value);

@@ -27,11 +27,28 @@ mkdir -p "$MANIFEST_DIR"
 # Generate deployment manifest filename with timestamp
 MANIFEST_FILE="$MANIFEST_DIR/deployment-$(date +%Y%m%d-%H%M%S).json"
 
+# Verify that ISSUER_PRIVATE_KEY is set before proceeding
+# secp256k1 public key (x || y, 64 bytes) derived from ISSUER_PRIVATE_KEY.
+# The same key must be in frontend/.env.local so /api/issue signs with it.
+if [ -z "${ISSUER_PRIVATE_KEY:-}" ]; then
+  echo "Error: ISSUER_PRIVATE_KEY is not set. Export it before running deploy.sh." >&2
+  exit 1
+fi
+
 echo "Building contracts..."
 stellar contract build >/dev/null
 
-ADMIN="$(stellar keys address "$SOURCE")"
+if ! ADMIN="$(stellar keys address "$SOURCE" 2>/dev/null)"; then
+  echo "Error: Source account '$SOURCE' not found in stellar CLI keys." >&2
+  echo "Please generate or import the key first. Example:" >&2
+  echo "  stellar keys generate --global $SOURCE --network $NETWORK --fund" >&2
+  exit 1
+fi
 echo "Admin / deployer: $ADMIN"
+
+# Record the exact source commit so verifiers can git-checkout the same tree.
+SOURCE_COMMIT="$(git rev-parse HEAD 2>/dev/null || echo 'unknown')"
+echo "Source commit: $SOURCE_COMMIT"
 
 # Function to compute and record WASM hash
 compute_wasm_hash() {
@@ -102,13 +119,7 @@ echo "Deploying gated_pool (-> registry)..."
 GATED_POOL_ID="$(deploy gated_pool --registry "$PROOF_REGISTRY_ID")"
 
 echo "Registering deployer as a trusted issuer for all credential types..."
-# secp256k1 public key (x || y, 64 bytes) derived from ISSUER_PRIVATE_KEY.
-# Set ISSUER_PRIVATE_KEY in the environment before running this script.
-# The same key must be in frontend/.env.local so /api/issue signs with it.
-if [ -z "${ISSUER_PRIVATE_KEY:-}" ]; then
-  echo "Error: ISSUER_PRIVATE_KEY is not set. Export it before running deploy.sh." >&2
-  exit 1
-fi
+
 ISSUER_PUBKEY="$(node circuits/scripts/sign.js --pubkey-hex)"
 stellar contract invoke \
   --id "$ISSUER_REGISTRY_ID" \
@@ -133,6 +144,7 @@ for type in kyc age income jurisdiction funds accreditation employment; do
     --vk-file-path "$vk"
 done
 
+export NEXT_PUBLIC_STELLAR_NETWORK=$NETWORK
 export NEXT_PUBLIC_ISSUER_ADDRESS=$ADMIN
 export NEXT_PUBLIC_ISSUER_REGISTRY_ID=$ISSUER_REGISTRY_ID
 export NEXT_PUBLIC_CREDENTIAL_VERIFIER_ID=$CREDENTIAL_VERIFIER_ID
@@ -145,9 +157,11 @@ echo "Generating TypeScript bindings..."
 # Create deployment manifest JSON
 cat > "$MANIFEST_FILE" <<MANIFEST_JSON
 {
-  "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"),
+  "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
   "network": "$NETWORK",
   "admin": "$ADMIN",
+  "source_commit": "$SOURCE_COMMIT",
+  "verify_command": "git checkout $SOURCE_COMMIT && docker build -f docker/Dockerfile.reproducible -t sc . && docker run --rm -v \$(pwd)/out:/out --env SOURCE_DATE_EPOCH=0 sc sh -c 'cargo build --release --target wasm32v1-none --locked --offline && cp target/wasm32v1-none/release/*.wasm /out/' && sha256sum out/*.wasm",
   "contracts": {
     "issuer_registry": {
       "id": "$ISSUER_REGISTRY_ID",
@@ -169,6 +183,12 @@ cat > "$MANIFEST_FILE" <<MANIFEST_JSON
       "version": "$GATED_POOL_VERSION",
       "wasm_hash": "$GATED_POOL_HASH"
     }
+  },
+  "sha256sums": {
+    "issuer_registry": "$ISSUER_REGISTRY_HASH",
+    "credential_verifier": "$CREDENTIAL_VERIFIER_HASH",
+    "proof_registry": "$PROOF_REGISTRY_HASH",
+    "gated_pool": "$GATED_POOL_HASH"
   }
 }
 MANIFEST_JSON
@@ -182,6 +202,7 @@ cat <<EOF
 
 Deployed. Copy into frontend/.env.local:
 
+NEXT_PUBLIC_STELLAR_NETWORK=$NETWORK
 NEXT_PUBLIC_ISSUER_ADDRESS=$ADMIN
 NEXT_PUBLIC_ISSUER_REGISTRY_ID=$ISSUER_REGISTRY_ID
 NEXT_PUBLIC_CREDENTIAL_VERIFIER_ID=$CREDENTIAL_VERIFIER_ID
@@ -197,11 +218,21 @@ Contract Versions:
   proof_registry:       v$PROOF_REGISTRY_VERSION
   gated_pool:           v$GATED_POOL_VERSION
 
-To verify WASM hash integrity after deployment:
-  sha256sum $WASM_DIR/issuer_registry.wasm
-  sha256sum $WASM_DIR/credential_verifier.wasm
-  sha256sum $WASM_DIR/proof_registry.wasm
-  sha256sum $WASM_DIR/gated_pool.wasm
+Source commit: $SOURCE_COMMIT
+Deployment manifest: $MANIFEST_FILE
 
-Compare with hashes in: $MANIFEST_FILE
+To independently verify the deployed WASM matches this source commit:
+  git checkout $SOURCE_COMMIT
+  docker build -f docker/Dockerfile.reproducible -t sc .
+  mkdir -p out
+  docker run --rm -v \$(pwd)/out:/out --env SOURCE_DATE_EPOCH=0 sc \\
+    sh -c "cargo build --release --target wasm32v1-none --locked --offline \\
+           && cp target/wasm32v1-none/release/*.wasm /out/"
+  sha256sum out/*.wasm   # compare against hashes in $MANIFEST_FILE
+
+To verify against the live on-chain hashes (requires stellar CLI ≥ v26):
+  ./scripts/verify-wasm.sh --network $NETWORK
+
+Record this deployment in DEPLOYMENTS.md using the source_commit and
+sha256sums fields from $MANIFEST_FILE.
 EOF

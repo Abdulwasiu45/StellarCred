@@ -202,29 +202,27 @@ async function isIssuerTrusted(
 }
 ```
 
-### Pattern 4: Monitor for Revocations
+### Pattern 4: Gate at request time and reconcile on lifecycle webhooks
 
-Check if previously verified credentials are still valid:
+For ongoing access, do both:
 
-```typescript
-async function monitorCredentialStatus(holder: string, credentialType: string) {
-  const registry = new ProofRegistry(registryId, rpc);
+1. Check `hasClaim`/`check_claim` against the current chain state when a
+   protected request is made. Webhooks are asynchronous and can be delayed.
+2. Subscribe the exact wallet and claim type to the indexer's lifecycle webhook
+   endpoint. On `claim.revoked` or `claim.expired`, reconcile existing sessions,
+   memberships, or positions. This closes access that would otherwise remain
+   open without another user request.
 
-  // Poll every 10 seconds for 1 minute
-  for (let i = 0; i < 6; i++) {
-    const verified = await registry.check_claim(holder, credentialType);
+Neither check alone is sufficient: request-time gating does not notify a
+protocol about already granted access, while notification-only enforcement
+can miss requests during delivery delays or outages.
 
-    if (!verified) {
-      console.warn(`Credential revoked: ${credentialType}`);
-      return { revoked: true, checksAt: new Date() };
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 10_000));
-  }
-
-  return { revoked: false, checksAt: new Date() };
-}
-```
+See the indexer's [protocol lifecycle webhook guide](../../../services/indexer/README.md#protocol-claim-lifecycle-webhooks)
+for authenticated subscription management, payloads, signature verification,
+expiry semantics, retry behavior, and limitations. Holder self-revocation
+notifications require a ProofRegistry deployment with the new lifecycle event;
+request-time checks are still required to cover notification delays and older
+deployments.
 
 ---
 
@@ -599,6 +597,10 @@ if (!result.ok) {
 // Access granted: caller proved wallet control AND satisfies credential requirements
 ```
 
+### Canonical Integration Example
+
+A runnable reference application implementing this entire pattern from start to finish is located in the repository at [`examples/canonical-integration`](../../examples/canonical-integration). It provides a working backend with challenge replay protection, session token management, route gating, and failure-state evaluation against Soroban testnet.
+
 ---
 
 ## Support
@@ -632,4 +634,18 @@ For issues or questions:
 - Support EventContractUpgraded
 - Migration endpoints
 - Event subscriptions
+
+---
+
+## Tree-Shaking & Bundle Optimization
+
+`@stellarcred/sdk` is designed for minimal bundle overhead across both browser and server applications:
+
+- **`sideEffects: false`**: Configured in `package.json` to enable full dead-code elimination in modern bundlers (Webpack, Vite, Rollup, Next.js).
+- **Subpath entrypoints**:
+  - `import StellarCred from "@stellarcred/sdk"`: Primary client entrypoint.
+  - `import StellarCred from "@stellarcred/sdk/server"`: Node.js and Edge backend runtimes.
+- **Dynamic On-Demand Module Loading**:
+  - Heavy RPC modules and Soroban contract bindings (`@stellar/stellar-sdk` and `proof-registry`) are loaded on-demand via dynamic `import()` only when on-chain contract queries (`hasClaim`, `getClaim`) are executed.
+  - Offline helpers like `buildVerifyUrl()`, `buildBadgeUrl()`, `buildBadgeEmbedCode()`, `CLAIM_TYPES`, `TimeoutError`, and `createClaimGate()` execute with zero network overhead and without loading heavy Soroban dependencies.
 

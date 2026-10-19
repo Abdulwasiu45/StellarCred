@@ -34,7 +34,7 @@ vi.mock("@creit.tech/stellar-wallets-kit", () => {
       MockKit.lastInstance = this;
     }
   }
-  return {
+  return { ModuleType: { HW_WALLET: "HW_WALLET" },
     StellarWalletsKit: MockKit,
     WalletNetwork: { PUBLIC: "Public Global Stellar Network ; September 2015", TESTNET: "Test SDF Network ; September 2015" },
     allowAllModules: () => [{ id: "freighter" }, { id: "albedo" }] as unknown as ModuleInterface[],
@@ -146,6 +146,18 @@ describe("lib/wallet.ts", () => {
       });
 
       await expect(connect()).rejects.toMatchObject({ kind: "rejected" });
+    });
+
+    it("maps timeout error during approval to timeout kind with descriptive message", async () => {
+      kit.openModal.mockImplementation(async ({ onWalletSelected }: { onWalletSelected: (w: ISupportedWallet) => Promise<void> }) => {
+        kit.getAddress.mockRejectedValue(new Error("Request timed out while waiting for wallet approval"));
+        await onWalletSelected(wallet("freighter", "Freighter", "https://freighter.app"));
+      });
+
+      await expect(connect()).rejects.toMatchObject({
+        kind: "timeout",
+        message: expect.stringMatching(/timed out/i),
+      });
     });
   });
 
@@ -281,5 +293,23 @@ describe("lib/wallet.ts getKit() WalletConnect module wiring", () => {
     const wc = modules.find((m) => m instanceof WalletConnectModule) as unknown as { params: { projectId: string } } | undefined;
     expect(wc).toBeDefined();
     expect(wc?.params.projectId).toBe("test-project-id");
+  });
+
+  it("registers a Ledger module", async () => {
+    vi.resetModules();
+    const { getKit } = await import("../wallet");
+    const { LEDGER_ID } = await import("../ledger-module");
+
+    const modules = (getKit() as unknown as MockKitInstance).modules;
+    const ledger = modules.find((m) => m.productId === LEDGER_ID);
+    expect(ledger).toBeDefined();
+    expect(ledger?.productName).toBe("Ledger");
+  });
+
+  it("Ledger module is available when WebUSB is supported", async () => {
+    const { getLedgerModule } = await import("../ledger-module");
+    const ledger = getLedgerModule();
+    const available = await ledger.isAvailable();
+    expect(typeof available).toBe("boolean");
   });
 });

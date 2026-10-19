@@ -19,7 +19,7 @@ export interface BadgeProps {
   /** Additional className */
   className?: string;
   /** Render as a different element (e.g. <li>) */
-  as?: keyof JSX.IntrinsicElements;
+  as?: React.ElementType;
 }
 
 /**

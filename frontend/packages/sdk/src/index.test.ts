@@ -1,13 +1,15 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+﻿import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const isVerified = vi.fn();
 const checkClaim = vi.fn();
+const getRecord = vi.fn();
 
 vi.mock("../../proof-registry/src/index", () => ({
   Client: vi.fn(function ProofRegistryClient() {
     return {
       is_verified: isVerified,
       check_claim: checkClaim,
+      get_record: getRecord,
     };
   }),
 }));
@@ -25,6 +27,9 @@ import {
   configure,
   hasClaim,
   getClaims,
+  getClaimRecord,
+  buildVerifyUrl,
+  checkClaimStatus,
   verifyPreset,
   ConfigError,
   InvalidAddressError,
@@ -50,7 +55,7 @@ describe("error taxonomy exports", () => {
   });
 });
 
-describe("hasClaim — address validation", () => {
+describe("hasClaim â€” address validation", () => {
   beforeEach(() => {
     isVerified.mockReset();
     checkClaim.mockReset();
@@ -112,7 +117,7 @@ describe("hasClaim — address validation", () => {
   });
 });
 
-describe("hasClaim — fail-soft default", () => {
+describe("hasClaim â€” fail-soft default", () => {
   beforeEach(() => {
     isVerified.mockReset();
     checkClaim.mockReset();
@@ -149,7 +154,7 @@ describe("hasClaim — fail-soft default", () => {
   });
 });
 
-describe("hasClaim — throwOnError", () => {
+describe("hasClaim â€” throwOnError", () => {
   beforeEach(() => {
     isVerified.mockReset();
     checkClaim.mockReset();
@@ -261,7 +266,7 @@ describe("read request timeout", () => {
   });
 });
 
-describe("getClaims — address validation", () => {
+describe("getClaims â€” address validation", () => {
   beforeEach(() => {
     isVerified.mockReset();
     checkClaim.mockReset();
@@ -292,7 +297,7 @@ describe("getClaims — address validation", () => {
   });
 });
 
-describe("getClaims — throwOnError", () => {
+describe("getClaims â€” throwOnError", () => {
   beforeEach(() => {
     isVerified.mockReset();
   });
@@ -384,7 +389,7 @@ describe("SDK withRetry with exponential backoff", () => {
   });
 });
 
-// ── verifyPreset (#386) ──────────────────────────────────────────────────────
+// â”€â”€ verifyPreset (#386) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe("verifyPreset", () => {
   beforeEach(() => {
@@ -447,7 +452,7 @@ describe("verifyPreset", () => {
   });
 });
 
-// ── Client/server boundary warning (Issue #535) ─────────────────────────────
+// â”€â”€ Client/server boundary warning (Issue #535) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe("warnOnClientServerBoundaryViolation", () => {
   let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
@@ -473,14 +478,14 @@ describe("warnOnClientServerBoundaryViolation", () => {
   });
 
   it("does NOT warn in a non-browser (Node.js) context even with server-only env vars", () => {
-    // In vitest/Node, `window` is not defined — simulates a real Node.js environment.
+    // In vitest/Node, `window` is not defined â€” simulates a real Node.js environment.
     // Ensure window is absent.
     delete (globalThis as Record<string, unknown>).window;
     process.env["STELLARCRED_REGISTRY_ID"] = "C_SERVER_REGISTRY";
 
     configure({ registryId: "C_SERVER_REGISTRY" });
 
-    // No boundary warning should fire — we're in Node, not a browser.
+    // No boundary warning should fire â€” we're in Node, not a browser.
     const boundaryWarnings = consoleWarnSpy.mock.calls.filter(([msg]) =>
       typeof msg === "string" && msg.includes("[StellarCred]") && msg.includes("server-only"),
     );
@@ -561,5 +566,172 @@ describe("warnOnClientServerBoundaryViolation", () => {
     } finally {
       envMut["NODE_ENV"] = origNodeEnv;
     }
+  });
+});
+
+describe("checkClaimStatus and getClaimRecord â€” failure state handling", () => {
+  beforeEach(() => {
+    getRecord.mockReset();
+    configure({ registryId: "C_TEST_REGISTRY" });
+  });
+
+  it("evaluates 'not_verified' when no on-chain record exists", async () => {
+    getRecord.mockResolvedValue({ result: null });
+    const res = await checkClaimStatus(WALLET, "kyc");
+    expect(res.valid).toBe(false);
+    expect(res.status).toBe("not_verified");
+    expect(res.record).toBeNull();
+    expect(res.error).toContain("no on-chain proof");
+  });
+
+  it("evaluates 'revoked' when record.revoked is true", async () => {
+    getRecord.mockResolvedValue({
+      result: {
+        verified_at: 1_700_000_000n,
+        expiry: 2_000_000_000n,
+        revoked: true,
+        issuer: "G_ISSUER_1",
+        threshold: undefined,
+        vk_version: 1,
+      },
+    });
+    const res = await checkClaimStatus(WALLET, "kyc");
+    expect(res.valid).toBe(false);
+    expect(res.status).toBe("revoked");
+    expect(res.record?.revoked).toBe(true);
+    expect(res.error).toContain("revoked");
+  });
+
+  it("evaluates 'expired' when expiry is in the past", async () => {
+    getRecord.mockResolvedValue({
+      result: {
+        verified_at: 1_000_000_000n,
+        expiry: 1_000_000_100n, // way in the past
+        revoked: false,
+        issuer: "G_ISSUER_1",
+        threshold: undefined,
+        vk_version: 1,
+      },
+    });
+    const res = await checkClaimStatus(WALLET, "kyc");
+    expect(res.valid).toBe(false);
+    expect(res.status).toBe("expired");
+    expect(res.error).toContain("expired");
+  });
+
+  it("evaluates 'wrong_issuer' when issuer is not in trustedIssuers list", async () => {
+    getRecord.mockResolvedValue({
+      result: {
+        verified_at: 1_700_000_000n,
+        expiry: 2_000_000_000n,
+        revoked: false,
+        issuer: "G_UNTRUSTED_ISSUER",
+        threshold: undefined,
+        vk_version: 1,
+      },
+    });
+    const res = await checkClaimStatus(WALLET, "kyc", {
+      trustedIssuers: ["G_TRUSTED_PERSONA_ISSUER"],
+    });
+    expect(res.valid).toBe(false);
+    expect(res.status).toBe("wrong_issuer");
+    expect(res.error).toContain("not in trusted issuers list");
+  });
+
+  it("evaluates 'unmet_threshold' when threshold is below required minimum", async () => {
+    getRecord.mockResolvedValue({
+      result: {
+        verified_at: 1_700_000_000n,
+        expiry: 2_000_000_000n,
+        revoked: false,
+        issuer: "G_ISSUER_1",
+        threshold: 25_000n,
+        vk_version: 1,
+      },
+    });
+    const res = await checkClaimStatus(WALLET, "funds", {
+      minThreshold: 50_000,
+    });
+    expect(res.valid).toBe(false);
+    expect(res.status).toBe("unmet_threshold");
+    expect(res.error).toContain("less than required minimum");
+  });
+
+  it("evaluates 'verified' when all requirements are met", async () => {
+    getRecord.mockResolvedValue({
+      result: {
+        verified_at: 1_700_000_000n,
+        expiry: 2_000_000_000n,
+        revoked: false,
+        issuer: "G_TRUSTED_ISSUER",
+        threshold: 75_000n,
+        vk_version: 1,
+      },
+    });
+    const res = await checkClaimStatus(WALLET, "funds", {
+      minThreshold: 50_000,
+      trustedIssuers: ["G_TRUSTED_ISSUER"],
+    });
+    expect(res.valid).toBe(true);
+    expect(res.status).toBe("verified");
+    expect(res.record?.threshold).toBe(75_000);
+  });
+
+  it("getClaimRecord returns formatted details or null", async () => {
+    getRecord.mockResolvedValue({
+      result: {
+        verified_at: 1_700_000_000n,
+        expiry: 2_000_000_000n,
+        revoked: false,
+        issuer: "G_ISSUER_A",
+        threshold: 21n,
+        vk_version: 2,
+      },
+    });
+    const rec = await getClaimRecord(WALLET, "age");
+    expect(rec).toEqual({
+      verifiedAt: 1_700_000_000,
+      expiry: 2_000_000_000,
+      revoked: false,
+      issuer: "G_ISSUER_A",
+      threshold: 21,
+      vkVersion: 2,
+    });
+  });
+});
+describe("buildVerifyUrl expiry + single-use", () => {
+  const base = { returnUrl: "https://proto.example/cb", claim: "kyc" as const };
+
+  it("defaults to a link with no exp and no jti (legacy behaviour)", () => {
+    const u = new URL(buildVerifyUrl(base));
+    expect(u.searchParams.has("exp")).toBe(false);
+    expect(u.searchParams.has("jti")).toBe(false);
+  });
+
+  it("sets exp = now + expiresInMinutes*60 when expiresInMinutes is given", () => {
+    const before = Math.floor(Date.now() / 1000);
+    const u = new URL(buildVerifyUrl({ ...base, expiresInMinutes: 5 }));
+    const after = Math.floor(Date.now() / 1000);
+    const exp = Number(u.searchParams.get("exp"));
+    expect(exp).toBeGreaterThanOrEqual(before + 300);
+    expect(exp).toBeLessThanOrEqual(after + 300);
+  });
+
+  it("rejects a non-positive expiresInMinutes", () => {
+    expect(() => buildVerifyUrl({ ...base, expiresInMinutes: 0 })).toThrow();
+    expect(() => buildVerifyUrl({ ...base, expiresInMinutes: -5 })).toThrow();
+  });
+
+  it("sets a URL-safe jti when singleUse is true", () => {
+    const u = new URL(buildVerifyUrl({ ...base, singleUse: true }));
+    const jti = u.searchParams.get("jti");
+    expect(jti).toBeTruthy();
+    expect(jti!).toMatch(/^[A-Za-z0-9_-]{8,128}$/);
+  });
+
+  it("produces distinct jti values across calls", () => {
+    const a = new URL(buildVerifyUrl({ ...base, singleUse: true })).searchParams.get("jti");
+    const b = new URL(buildVerifyUrl({ ...base, singleUse: true })).searchParams.get("jti");
+    expect(a).not.toBe(b);
   });
 });

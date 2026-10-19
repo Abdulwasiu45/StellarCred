@@ -4,11 +4,9 @@
 // StellarCred ProofRegistry contract.
 //
 // This is the single source of truth for contract error codes — shared with
-// both the client-side interaction layer (contracts.ts) and any SDK-typed
-// error helpers. Keep error messages here and import from this module
-// everywhere else.
-
-// ── Error table ───────────────────────────────────────────────────────────────
+// both the client-side interaction layer (contracts.ts) and the SDK's typed
+// error helpers (packages/sdk/src/errors.ts). Keep error messages here and
+// import from this module everywhere else.
 
 /**
  * Maps ProofRegistry on-chain error codes to human-readable messages.
@@ -53,6 +51,11 @@ export interface ContractError {
 
 /**
  * Normalises a raw contract error string into a {@link ContractError}.
+ * 
+ * This is a frontend-specific wrapper that maintains backward compatibility
+ * with existing UI code. For new code, prefer importing ContractError from
+ * the SDK (@stellarcred/sdk) which provides typed error codes and helper
+ * methods like isRetryable() and isTerminal().
  *
  * Handles:
  * - Numeric contract errors:  `Error(Contract, #N)` → looks up {@link PROOF_REGISTRY_ERRORS}
