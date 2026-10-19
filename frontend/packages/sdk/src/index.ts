@@ -1312,6 +1312,30 @@ export type {
 // Namespace export (StellarCred.hasClaim / StellarCred.getClaims / etc.)
 // ---------------------------------------------------------------------------
 
+// Version helpers — Issue #841
+export {
+  getCredentialCircuitVersion,
+  isCompatibleCredential,
+  getCredentialVersionStatus,
+  getDeploymentCircuitVersion,
+  KNOWN_CIRCUIT_VERSIONS,
+} from "./version";
+
+export type {
+  CredentialVersionInfo,
+  CredentialVersionStatus,
+  VersionableCredential,
+  CredentialDeployment,
+} from "./version";
+
+import {
+  getCredentialCircuitVersion,
+  isCompatibleCredential,
+  getCredentialVersionStatus,
+  getDeploymentCircuitVersion,
+  KNOWN_CIRCUIT_VERSIONS,
+} from "./version";
+
 export const StellarCred = {
   configure,
   healthCheck,
@@ -1334,6 +1358,12 @@ export const StellarCred = {
   ConfigError,
   InvalidAddressError,
   RpcError,
+  // Version helpers (#841)
+  getCredentialCircuitVersion,
+  isCompatibleCredential,
+  getCredentialVersionStatus,
+  getDeploymentCircuitVersion,
+  KNOWN_CIRCUIT_VERSIONS,
 };
 export default StellarCred;
 

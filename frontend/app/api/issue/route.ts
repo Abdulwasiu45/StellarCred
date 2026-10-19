@@ -9,6 +9,7 @@ import {
   resolveRequestId,
 } from "@/lib/logger";
 import { reportError } from "@/lib/error-reporting";
+import { recordIssuance, recordRateLimitHit, recordError } from "@/lib/metrics";
 import { env } from "@/lib/env";
 import { fetchPlaidBalance } from "@/lib/plaid";
 import {
@@ -101,6 +102,7 @@ export async function POST(req: NextRequest) {
         requestId,
       }),
     );
+    recordRateLimitHit("issue", "ip");
     return tooManyRequestsResponse(ipResult.retryAfterMs);
   }
 
@@ -195,6 +197,16 @@ async function executeRequest(
           requestId,
         }),
       );
+      // Record metrics for every completed issuance request.
+      recordIssuance(
+        type || "unknown",
+        outcome === "success" ? "success" : "failure",
+        durationMs,
+      );
+    }
+    // If no credential types were parsed yet (early rejection), record once.
+    if (credentialTypes.length === 0) {
+      recordIssuance("unknown", "invalid_request", durationMs);
     }
     return response;
   };
@@ -216,6 +228,7 @@ async function executeRequest(
           requestId,
         }),
       );
+      recordRateLimitHit("issue", "wallet");
       return sendResponse(tooManyRequestsResponse(walletResult.retryAfterMs));
     }
   }
@@ -486,6 +499,7 @@ async function executeRequest(
       status: 500,
       exception: e,
     });
+    recordError("issue", "signing_error");
     return sendResponse(
       NextResponse.json({ error: (e as Error).message }, { status: 500 }),
     );

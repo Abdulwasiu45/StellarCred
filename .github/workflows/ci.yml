@@ -448,6 +448,12 @@ jobs:
           # Point the Postgres leg of the DB matrix at the service container.
           TEST_POSTGRES_URL: postgres://indexer:indexer@localhost:5432/indexer
 
+      - name: Run indexer parsing and persistence tests (#820)
+        run: npm test -- --testPathPattern=tests/indexer
+        env:
+          PROOF_REGISTRY_CONTRACT_ID: C000000000000000000000000000000000000000000000000000000000000001
+          RPC_URL: https://soroban-testnet.stellar.org
+
   # ── SDK integration tests ───────────────────────────────────────────────────
   sdk-integration:
     name: SDK integration tests (testnet)
