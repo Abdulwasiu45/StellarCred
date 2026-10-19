@@ -9,7 +9,7 @@ This document details the Content Security Policy implementation for the Stellar
 The application utilizes two distinct CSP configurations assembled across `lib/csp.mjs`, `next.config.mjs`, and `middleware.ts`:
 
 1. **Legacy Enforced Policy**: Defined via `buildCsp({ strict: false, ... })` and served through the static `headers()` list in `next.config.mjs`. It permits `'unsafe-inline'` script execution to maintain backwards compatibility while external scripts and unauthorized origins remain restricted.
-2. **Strict Nonce Policy**: Defined via `buildCsp({ strict: true, ... })` in `lib/csp.mjs` and generated dynamically in `middleware.ts`. It generates a cryptographically random Base64 nonce per request, injects it into Next.js script tags, forbids `'unsafe-inline'` in script-src, and introduces restrictive directives (`object-src`, `base-uri`, `frame-ancestors`, etc.).
+2. **Strict Nonce Policy**: Defined via `buildCsp({ strict: true, ... })` in `lib/csp.mjs` and generated dynamically in `middleware.ts`. It generates a cryptographically random Base64 nonce per request, injects it into Next.js script tags, and forbids `'unsafe-inline'` in script-src. The strict policy adds `frame-ancestors`, `worker-src` and `manifest-src` beyond the legacy one (`object-src`, `base-uri`, and `form-action` are in both policies, added to the legacy policy upstream in #800 and mirrored in `lib/csp.mjs`).
 
 Violation telemetry is captured via the `Reporting-Endpoints` header pointing to `/api/csp-report`.
 
@@ -40,9 +40,9 @@ The table below outlines directives present across the legacy policy (`strict: f
 | `img-src` | `'self' data: https://stellar.creit.tech https://storage.herewallet.app` (+ `https://explorer-api.walletconnect.com` if WalletConnect enabled) | `stellar.creit.tech` hosts wallet icons for Freighter, xBull, Lobstr, Albedo, etc. in Stellar Wallets Kit. `storage.herewallet.app` hosts HOT Wallet icons. `explorer-api.walletconnect.com` loads WalletConnect modal icons when enabled. data: allows data URIs for images. |
 | `connect-src` | `'self' https://soroban-testnet.stellar.org https://soroban-mainnet.stellar.org` (+ `NEXT_PUBLIC_RPC_URL` if set, + `wss://relay.walletconnect.com wss://relay.walletconnect.org https://explorer-api.walletconnect.com https://verify.walletconnect.com https://verify.walletconnect.org` if WalletConnect enabled) | Browser-side client RPC calls (`contracts.ts`) against Soroban endpoints. WalletConnect requires WebSocket relays and verify/explorer APIs hardcoded in `@walletconnect/core`. |
 | `frame-src` | `'self' https://verify.walletconnect.com https://verify.walletconnect.org` (WalletConnect only) | Permits WalletConnect's domain verification iframe loaded by `@walletconnect/sign-client`. Omitted when WalletConnect is disabled. |
-| `object-src` | Strict: `'none'` | Blocks legacy plugin execution (Flash, Java applets). |
-| `base-uri` | Strict: `'self'` | Prevents malicious injection of `<base>` elements altering relative URLs. |
-| `form-action` | Strict: `'self'` | Restricts targets of HTML form submissions to the application origin. |
+| `object-src` | Both policies: `'none'` (added to the legacy policy upstream in #800 and mirrored in `lib/csp.mjs`) | Blocks legacy plugin execution (Flash, Java applets). |
+| `base-uri` | Both policies: `'self'` (added to the legacy policy upstream in #800 and mirrored in `lib/csp.mjs`) | Prevents malicious injection of `<base>` elements altering relative URLs. |
+| `form-action` | Both policies: `'self'` (added to the legacy policy upstream in #800 and mirrored in `lib/csp.mjs`) | Restricts targets of HTML form submissions to the application origin. |
 | `frame-ancestors` | Strict: `'none'` | Forbids embedding pages inside foreign frames/iframes, aligning with `X-Frame-Options: DENY`. |
 | `worker-src` | Strict: `'self'` | The proof worker (`/workers/proof-worker.js`) and Barretenberg Web Worker (`/bb/main.worker.js, copied from bb.js into public/bb at build time`) are served same-origin. `blob:` is not needed. |
 | `manifest-src` | Strict: `'self'` | Restricts loading of progressive web app manifests to same-origin. |

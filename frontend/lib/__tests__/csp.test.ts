@@ -8,16 +8,16 @@ import {
 } from "../csp.mjs";
 
 const GOLDEN_CSP_WC_OFF_RPC_OFF =
-  "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://stellar.creit.tech https://storage.herewallet.app; connect-src 'self' https://soroban-testnet.stellar.org https://soroban-mainnet.stellar.org;";
+  "default-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://stellar.creit.tech https://storage.herewallet.app; connect-src 'self' https://soroban-testnet.stellar.org https://soroban-mainnet.stellar.org;";
 
 const GOLDEN_CSP_WC_OFF_RPC_ON =
-  "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://stellar.creit.tech https://storage.herewallet.app; connect-src 'self' https://soroban-testnet.stellar.org https://soroban-mainnet.stellar.org https://custom-rpc.example.com;";
+  "default-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://stellar.creit.tech https://storage.herewallet.app; connect-src 'self' https://soroban-testnet.stellar.org https://soroban-mainnet.stellar.org https://custom-rpc.example.com;";
 
 const GOLDEN_CSP_WC_ON_RPC_OFF =
-  "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://stellar.creit.tech https://storage.herewallet.app https://explorer-api.walletconnect.com; connect-src 'self' https://soroban-testnet.stellar.org https://soroban-mainnet.stellar.org wss://relay.walletconnect.com wss://relay.walletconnect.org https://explorer-api.walletconnect.com https://verify.walletconnect.com https://verify.walletconnect.org; frame-src 'self' https://verify.walletconnect.com https://verify.walletconnect.org;";
+  "default-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://stellar.creit.tech https://storage.herewallet.app https://explorer-api.walletconnect.com; connect-src 'self' https://soroban-testnet.stellar.org https://soroban-mainnet.stellar.org wss://relay.walletconnect.com wss://relay.walletconnect.org https://explorer-api.walletconnect.com https://verify.walletconnect.com https://verify.walletconnect.org; frame-src 'self' https://verify.walletconnect.com https://verify.walletconnect.org;";
 
 const GOLDEN_CSP_WC_ON_RPC_ON =
-  "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://stellar.creit.tech https://storage.herewallet.app https://explorer-api.walletconnect.com; connect-src 'self' https://soroban-testnet.stellar.org https://soroban-mainnet.stellar.org wss://relay.walletconnect.com wss://relay.walletconnect.org https://explorer-api.walletconnect.com https://verify.walletconnect.com https://verify.walletconnect.org https://custom-rpc.example.com; frame-src 'self' https://verify.walletconnect.com https://verify.walletconnect.org;";
+  "default-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://stellar.creit.tech https://storage.herewallet.app https://explorer-api.walletconnect.com; connect-src 'self' https://soroban-testnet.stellar.org https://soroban-mainnet.stellar.org wss://relay.walletconnect.com wss://relay.walletconnect.org https://explorer-api.walletconnect.com https://verify.walletconnect.com https://verify.walletconnect.org https://custom-rpc.example.com; frame-src 'self' https://verify.walletconnect.com https://verify.walletconnect.org;";
 
 describe("CSP builder", () => {
   describe("baseline non-strict mode golden values", () => {

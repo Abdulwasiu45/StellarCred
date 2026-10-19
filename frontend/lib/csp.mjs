@@ -73,6 +73,9 @@ export function buildCsp(options = {}) {
 
   const csp = [
     "default-src 'self'",
+    ...(strict
+      ? []
+      : ["object-src 'none'", "base-uri 'self'", "form-action 'self'"]),
     scriptSrc,
     // React and Next emit inline style attributes, and nonces can't cover them.
     "style-src 'self' 'unsafe-inline'",

@@ -17,6 +17,8 @@ const processPath = require.resolve("process/browser");
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Don't advertise the framework/version to scanners (#800 audit).
+  poweredByHeader: false,
   experimental: {
     optimizePackageImports: ["@tabler/icons-react"],
   },

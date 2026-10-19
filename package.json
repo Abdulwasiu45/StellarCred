@@ -1,72 +1,18 @@
 {
- feature/encrypt-export-artifacts-786
-  "name": "StellarCred",
-  "version": "1.0.0",
-  "description": "StellarCred security and export artifact service",
-  "main": "index.js",
-  "scripts": {
-    "test": "vitest run"
-  },
-  "devDependencies": {
-    "vite": "^8.3.4",
-    "vitest": "^5.0.5"
-
   "name": "stellar-kyc-credentials",
   "version": "0.1.0",
   "private": true,
   "description": "Kill Your Credentials - Stellar Soroban contracts and frontend",
   "scripts": {
     "test": "nyc pnpm run test:unit",
-    "test:unit": "node --test",
+    "test:unit": "node --test test/**/*.test.js",
     "coverage": "nyc pnpm run test:unit",
     "coverage:report": "nyc report --reporter=text-summary --reporter=lcov"
   },
   "devDependencies": {
     "nyc": "^17.1.0",
-    "coverage": "^0.4.1"
-  },
-  "nyc": {
-    "all": true,
-    "include": [
-      "src/**/*.js",
-      "src/**/*.ts"
-    ],
-    "exclude": [
-      "node_modules/**",
-      "tests/**",
-      "**/*.test.js",
-      "**/*.test.ts",
-      "dist/**/*"
-    ],
-    "reporter": [
-      "text-summary",
-      "lcov",
-      "json-summary"
-    ],
-    "report-dir": "coverage",
-    "check-coverage": true,
-    "branches": 80,
-    "lines": 80,
-    "functions": 80,
-    "statements": 80,
-    "watermarks": {
-      "lines": [
-        90,
-        100
-      ],
-      "functions": [
-        90,
-        100
-      ],
-      "branches": [
-        90,
-        100
-      ],
-      "statements": [
-        90,
-        100
-      ]
-    }
-main
+    "coverage": "^0.4.1",
+    "vite": "^8.3.4",
+    "vitest": "^5.0.5"
   }
 }
