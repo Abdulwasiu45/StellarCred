@@ -556,13 +556,9 @@ jobs:
           npm run typecheck
           npm start
 
-      - name: Verify SDK tree-shaking (bundle check)
-        working-directory: frontend/packages/sdk
-        run: pnpm check:bundle
-
-      - name: Verify SDK public API surface unchanged
-        working-directory: frontend/packages/sdk
-        run: pnpm check:api-surface
+      # (The former "check:bundle" / "check:api-surface" steps invoked pnpm
+      # scripts that exist in no package.json — same dead-call signature as
+      # test:barrel above. Re-add them if those guards are ever written.)
 
       - name: Typecheck SDK
         working-directory: frontend/packages/sdk
