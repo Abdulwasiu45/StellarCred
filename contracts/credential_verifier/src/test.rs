@@ -42,9 +42,12 @@ fn test_negative_fixtures_all_circuits() {
             _ => unreachable!(),
         };
 
-        let proof_path = format!("fixtures/negative/{}/proof", case);
-        let vk_path = format!("fixtures/negative/{}/vk", case);
-        let inputs_path = format!("fixtures/negative/{}/public_inputs", case);
+        // Cargo sets the test working directory to the package root, so the
+        // repo-root fixtures must be addressed relative to the manifest dir.
+        let base = concat!(env!("CARGO_MANIFEST_DIR"), "/../../fixtures/negative");
+        let proof_path = format!("{base}/{case}/proof");
+        let vk_path = format!("{base}/{case}/vk");
+        let inputs_path = format!("{base}/{case}/public_inputs");
 
         let proof_bytes = std::fs::read(&proof_path)
             .unwrap_or_else(|_| panic!("Failed to read {}", proof_path));
@@ -54,7 +57,9 @@ fn test_negative_fixtures_all_circuits() {
             .unwrap_or_else(|_| panic!("Failed to read {}", inputs_path));
 
         let proof = Bytes::from_slice(&env, &proof_bytes);
-        let vk = Bytes::from_slice(&env, &vk_bytes);
+        // Read above to prove the fixture exists; the on-chain verifier resolves
+        // the key itself, so the client call does not take it.
+        let _vk = Bytes::from_slice(&env, &vk_bytes);
         let public_inputs = Bytes::from_slice(&env, &inputs_bytes);
 
         let res = client.try_verify_proof(&credential_type, &proof, &public_inputs, &None);
