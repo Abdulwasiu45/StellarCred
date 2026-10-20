@@ -70,6 +70,7 @@ export const SAFE_FIELDS = [
   "itemCount",
   "accountCount",
   "cspViolation",
+  "sentryEventId",
 ];
 
 export function stripSensitiveFields<T extends Record<string, unknown>>(obj: T): Partial<T> {
