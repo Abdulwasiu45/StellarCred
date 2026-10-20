@@ -13,6 +13,31 @@ scripts/      deploy.sh — wires all contracts on testnet
 fixtures/     real vk / proof / public_inputs used by contract tests
 ```
 
+### Where a markdown file belongs
+
+The repository tracks documentation in two places, and the split has one rule:
+
+- **Repository root** — the entry points a person or a tool is expected to find
+  without looking: `README.md`, `CONTRIBUTING.md`, `SECURITY.md`, `CHANGELOG.md`,
+  `ROADMAP.md`, `LICENSE`. A component directory keeps its own `README.md`
+  (`services/indexer/README.md`, `frontend/packages/sdk/README.md`) as that
+  component's entry point.
+- **`docs/`** — everything else: specifications, integration guides, runbooks,
+  operational references (`docs/EVENTS.md`, `docs/THREAT_MODEL.md`,
+  `docs/ISSUER_ONBOARDING.md`, …), with decision records in `docs/adr/`.
+
+Two rules follow. The first is the one whose absence produced the duplicated
+`EVENTS.md` (issue #687):
+
+1. **One topic, one file.** Never mirror a document into a second path for
+   visibility. If it must stay reachable from the root `README.md`, link it from
+   there — a contract such as the event schema read by indexers and integrators
+   cannot exist in two copies, because one of them will go stale and its readers
+   will decode events wrong with no error to show them.
+2. **Link with a path that resolves from the file you are editing.** From the
+   root, `docs/EVENTS.md`; from another file in `docs/`, the sibling `EVENTS.md`;
+   from a component, the full walk up (`../../docs/EVENTS.md`).
+
 ### Writing a contract test
 
 Contract suites share one harness, `contracts/test_support`, so a test body is
@@ -167,6 +192,179 @@ in [#606](https://github.com/ToluLabs/StellarCred/issues/606).
 4. For circuit changes: run `./circuits/scripts/build.sh` and update the relevant `fixtures/<type>/` artifacts, then regenerate the regression test vectors with `node circuits/scripts/testvectors.js update` (see `circuits/README.md` — "Test Vectors") and commit the result. CI runs `node circuits/scripts/testvectors.js check` and fails if a circuit or toolchain change silently altered proof output without the vectors being updated.
 5. For frontend changes: run `pnpm tsc --noEmit` (zero errors required) and `pnpm build`.
 6. Open a pull request against `main` with a clear description of what changed and why.
+
+### Process documents belong in the PR description
+
+An implementation summary, review checklist, status report, test summary or
+"final verification" write-up is a **PR artifact, not a repository file**. Put it
+in the pull request description (or a PR comment), where it is read once, stays
+attached to the diff it describes, and is searchable from the PR. Do not commit it.
+
+- **Why:** such a document describes a change, and a change ends at merge. In the
+  tree it is wrong within days — every later edit to the code it documents makes
+  its claims stale while its file name still asserts authority — and it is never
+  updated, only re-created by the next contributor. It also buries the documents
+  that stay true: the root directory is where a newcomer looks for `README`,
+  `CONTRIBUTING`, `SETUP`, `ROADMAP`, `SECURITY`.
+- **What to do instead:** if something in your summary is worth keeping after the
+  merge, it is documentation, so move that part into the doc that owns the topic
+  (`circuits/README.md` for a circuit, `docs/` for a subsystem, the component's
+  own `README.md`) and let the rest live in the PR.
+- **Enforced:** [`.github/workflows/ci.yml`](.github/workflows/ci.yml) fails a PR
+  that *adds* a file whose name matches a process-artifact pattern
+  (`*IMPLEMENTATION_SUMMARY`, `*IMPLEMENTATION_DETAILS`, `*IMPLEMENTATION_NOTES`,
+  `*REVIEW_SUMMARY`, `*STATUS_REPORT`, `PR_DESCRIPTION*`, `*_COMPLETE`,
+  `START_HERE`, `FILES_MODIFIED`, `CRITICAL_FIX_NEEDED`, `READY_FOR_BUILD` — any
+  extension). Only new files are checked; the legacy ones still in the tree are
+  being removed separately. If you genuinely mean to add a durable document under
+  one of those names, add it with a reason to the allowlist in
+  [`.github/scripts/check-process-docs.mjs`](.github/scripts/check-process-docs.mjs)
+  and justify it in the PR.
+
+## Testing guide
+
+Everything here runs locally, and CI (the **CI** workflow, on every PR against
+`main`) runs the same commands — the bar is "CI green", not "green on my
+machine". One command covers every unit suite: **`make test`** (contracts +
+frontend + indexer + the canonical example). If you are not sure your toolchain
+matches the pinned versions, run **`make doctor`** first; it checks every pinned
+binary and exits non-zero on a mismatch.
+
+### Contracts (Rust / Soroban)
+
+```bash
+make test-contracts      # cargo test --locked at the repo root
+make lint-contracts      # cargo clippy --workspace --all-targets -- -D warnings
+```
+
+Keep `--locked`: the CI job runs `cargo test --locked`, and the wasm build is
+pinned by `rust-toolchain.toml`. The host-only test-harness crate is a workspace
+member — a bare `cargo build` skips it, the lint target does not.
+
+### Circuits (Noir / Barretenberg)
+
+`make compile-circuits` runs `circuits/scripts/build.sh`. If a circuit changes,
+regenerate the regression vectors
+(`node circuits/scripts/testvectors.js update`) and commit them — CI runs the
+`check` variant and fails on silent proof-output changes. The property-based
+circuit-fuzz job exercises the compiled circuits further.
+
+### Frontend (Next.js, pnpm)
+
+From `frontend/`:
+
+```bash
+pnpm test               # vitest unit suites
+pnpm test:coverage      # same suites with coverage (CI uploads the report)
+pnpm test:theme         # theme helpers via node:test
+pnpm --filter @stellarcred/issuer test    # issuer package, incl. cross-boundary circuit test
+pnpm exec tsc --noEmit  # zero errors required
+pnpm lint
+```
+
+One command for the common set: `make test-frontend`.
+
+### SDK
+
+Two SDKs live in this repo, and both are tested:
+
+- **`frontend/packages/sdk` (`@stellarcred/sdk`)** — the browser package.
+  `make test-sdk` runs `pnpm typecheck && pnpm test:integration` there; CI also
+  checks the barrel exports (`pnpm test:barrel`). The integration suite talks to
+  testnet and skips gracefully when credentials are absent.
+- **`sdk/` (root, standalone)** — `pnpm test` (vitest), `pnpm typecheck`, and
+  `pnpm bundle-check` for the bundle-size guard.
+
+### Indexer (Node.js, npm + jest)
+
+```bash
+make test-indexer        # cd services/indexer && npm test (jest)
+cd services/indexer && npm run build   # tsc must be clean
+```
+
+The DB suite is a **SQLite + Postgres matrix** in CI (a `postgres:16` service
+container). Locally the Postgres leg is gated on `TEST_POSTGRES_URL` (falling
+back to `DATABASE_URL`) and is *skipped* when unset — so a local run that
+reports fewer DB tests than CI is normal, not broken. Point `TEST_POSTGRES_URL`
+at any Postgres 16 (e.g. `docker compose up indexer`'s database) to run both
+legs.
+
+### E2E locally (Playwright, testnet)
+
+```bash
+cd frontend
+pnpm exec playwright install --with-deps chromium   # first time only
+pnpm test:e2e
+```
+
+Playwright starts its own dev server unless `PLAYWRIGHT_BASE_URL` is set, in
+which case it drives whatever is already running. The full happy-path flow
+(deploy → issue → prove → verify) needs a live testnet deployment and funded
+issuer keys: use [`scripts/e2e-testnet.sh`](scripts/e2e-testnet.sh) and the
+variables in the relevant `.env.example` files. Note the distinction in CI:
+the `Accessibility (axe-core)` job runs as part of every PR, while the
+ephemeral-testnet happy path
+([`.github/workflows/e2e.yml`](.github/workflows/e2e.yml)) is scheduled /
+manually dispatched, not a PR gate.
+
+### Docker
+
+`docker-compose.yml` wires the two long-running services:
+
+```bash
+docker compose up indexer     # indexer API on :4100
+docker compose up frontend    # web app on :3000
+```
+
+Use these for a quick smoke test when you would rather not install the full
+toolchain; the dev-image commands for contract/circuit work are in the
+[Docker quickstart](#docker-quickstart).
+
+### What CI runs on your PR
+
+The `CI` workflow contains these jobs — **all must pass before merge**:
+
+| Job | What it does |
+| --- | --- |
+| Dependency review | advisories / license / maintenance checks on changed packages |
+| Lint commit messages | commitlint — Conventional Commits are enforced |
+| Contract API reference drift check | `docs/PROOF_REGISTRY_API.md` vs the contract source |
+| Process artifact check | fails PRs that *add* process docs (see above) |
+| Contract tests & build | `cargo test --locked` + pinned wasm build |
+| Circuit compile / Property-based circuit fuzzing | pinned `nargo` + `bb`; test-vector check |
+| Frontend typecheck & build | vitest, coverage, `tsc --noEmit`, issuer + SDK barrel tests, identity-leak gate |
+| Indexer tests (SQLite + Postgres) | build + jest against both DB backends |
+| SDK integration tests (testnet) | `frontend/packages/sdk` integration suite |
+| Accessibility (axe-core) | Playwright + axe against the built app |
+| Coverage gate | merges frontend + indexer coverage and enforces thresholds (`.github/scripts/check-coverage.mjs`) |
+
+Two jobs are environment-dependent and may not run on your PR: the SDK
+integration job only starts when the repository variables it needs
+(`SC_TEST_WALLET`, `STELLARCRED_REGISTRY_ID`) are set — fork PRs cannot see
+maintainer secrets, which is by design — and the ephemeral-testnet E2E lives in
+its own scheduled workflow. Neither is a reason to skip local testing of the
+code you changed.
+
+### Debugging and common gotchas
+
+- **Start with `make doctor`.** A `nargo`/`bb` version mismatch is the worst
+  one: it silently produces wrong verification keys and the artifact-freshness
+  check fails with a confusing diff. Install the pinned versions it prints.
+- **Node 20 and pnpm 9** are the pinned JS toolchain (mirrored in
+  `Makefile` and `ci.yml`); other majors produce lockfile churn.
+- **`pnpm install` in `frontend/` runs a postinstall** that builds
+  `packages/issuer`. If that fails, build the issuer package directly to see
+  the real error.
+- **Commit message fails CI?** commitlint wants Conventional Commits
+  (`feat(scope): …`, `fix: …`, `docs: …`) — see
+  [Commit messages](#commit-messages).
+- **Playwright "browser not found"** → re-run
+  `pnpm exec playwright install --with-deps chromium`.
+- **Indexer Postgres leg "skipped"** in local output is the gating described
+  above, not a failure; CI is the place both legs actually run.
+- **Coverage gate failure** means your diff lowered coverage below the
+  threshold — add tests for the code you changed rather than adjusting the
+  gate.
 
 ## Picking up an issue
 

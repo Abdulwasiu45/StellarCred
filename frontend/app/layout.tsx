@@ -23,9 +23,7 @@ import { OnboardingOverlays } from "@/components/OnboardingOverlays";
 const body = localFont({
   variable: "--font-body",
   preload: false,
-  src: [
-    { path: "./fonts/inter-latin.woff2", weight: "400 500", style: "normal" },
-  ],
+  src: [{ path: "./fonts/inter-latin.woff2", weight: "400 500", style: "normal" }],
 });
 
 const display = localFont({
@@ -60,11 +58,7 @@ export const metadata: Metadata = {
     "Zero-knowledge credentials on Stellar. Prove facts about yourself without the data ever touching the chain.",
 };
 
-export default async function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
   let locale = "en";
   try {
     locale = await getLocale();
@@ -86,10 +80,7 @@ export default async function RootLayout({
       suppressHydrationWarning
     >
       <head>
-        <script
-          id="theme-detection"
-          dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }}
-        />
+        <script id="theme-detection" dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
         <LocaleMetaTags locale={locale as Locale} />
       </head>
       <body>
