@@ -266,6 +266,12 @@ jobs:
             (cd "$dir" && nargo compile)
           done
 
+      - name: Track circuit constraint counts and verify baselines
+        run: |
+          export PATH="$HOME/.nargo/bin:$PATH"
+          node scripts/track-constraints.js --compare ../perf/circuit-constraint-baselines.json --threshold 0.15
+        working-directory: circuits
+
       - name: Verify deterministic VK hashes
         run: |
           export PATH="$HOME/.nargo/bin:$HOME/.bb:$PATH"

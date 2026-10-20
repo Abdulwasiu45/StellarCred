@@ -572,6 +572,46 @@ Please do **not** open a public issue for security vulnerabilities. See [SECURIT
 - **Noir**: Keep circuits as simple as possible — constraint count directly affects browser proving time.
 - **Comments**: Only when the *why* is non-obvious (a constraint, a workaround, a subtle invariant). Don't explain what the code does.
 
+## Linting
+
+Every TypeScript workspace carries its own ESLint 9 flat config next to the code
+it lints, and `.github/workflows/lint.yml` runs all of them on push and pull
+request. A lint job fails on any **error**; it prints **warnings** and carries on.
+
+| Workspace | Config | Run locally |
+|-----------|--------|-------------|
+| Frontend app | [frontend/eslint.config.mjs](frontend/eslint.config.mjs) | `cd frontend && pnpm lint` (or `make lint-frontend`) |
+| Indexer service | [services/indexer/eslint.config.mjs](services/indexer/eslint.config.mjs) | `cd services/indexer && npm run lint` (or `make lint-indexer`) |
+
+`make lint` runs clippy plus both ESLint jobs.
+
+**Documented exceptions.** These are deliberate, not leftovers — each one has its
+rationale written into the config header:
+
+- `react-hooks/set-state-in-effect` and `react-hooks/refs` are warnings in the
+  frontend config: 34 pre-existing, working patterns from the Next.js 16 upgrade,
+  tracked for a dedicated refactor.
+- `@typescript-eslint/no-explicit-any` is a warning in both configs: the existing
+  uses sit at untyped boundaries (XDR and SDK values), so tightening them is a
+  typing task rather than a linting one. New code should avoid `any` anyway.
+- `prefer-const` is a frontend warning.
+- Inline `// eslint-disable-next-line` notes are used where a rule conflicts with
+  a deliberate design, e.g. the lazy `require()` of the optional `pg` /
+  `better-sqlite3` drivers in the indexer. Keep the suppression on the line, with
+  the reason in the comment above it.
+
+The indexer's lint toolchain (`eslint`, `@eslint/js`, `typescript-eslint`) is not
+in its `package-lock.json`, because `npm ci` in the build and test jobs fails when
+`package.json` and the lockfile disagree. On a fresh clone, install it once:
+
+```bash
+cd services/indexer && npm install --no-save --no-package-lock eslint@9 @eslint/js@9 typescript-eslint@8
+```
+
+Adding a rule is cheap; switching one to `error` is a repo-wide change, since the
+lint job then fails on every existing violation. Prefer a warning plus a tracked
+follow-up over a bulk reformat, and never silence a rule repo-wide to get green.
+
 ## Commit messages
 
 StellarCred uses [Conventional Commits](https://www.conventionalcommits.org/). Every commit message must have a structured prefix so the changelog and release notes are generated automatically.
