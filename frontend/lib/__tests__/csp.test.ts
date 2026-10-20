@@ -3,6 +3,7 @@ import {
   generateNonce,
   buildCsp,
   resolveCspMode,
+  resolveBadgeFrameAncestors,
   CSP_REPORT_PATH,
   CSP_REPORT_GROUP,
 } from "../csp.mjs";
@@ -80,11 +81,7 @@ describe("CSP builder", () => {
         "manifest-src 'self'",
       ];
 
-      const sharedDirectives = [
-        "object-src 'none'",
-        "base-uri 'self'",
-        "form-action 'self'",
-      ];
+      const sharedDirectives = ["object-src 'none'", "base-uri 'self'", "form-action 'self'"];
 
       const strictOnlyDirectives = [
         "frame-ancestors 'none'",
@@ -109,9 +106,7 @@ describe("CSP builder", () => {
     });
 
     it("throws an error when strict is true and nonce is falsy", () => {
-      expect(() => buildCsp({ strict: true })).toThrow(
-        "buildCsp: strict mode requires a nonce",
-      );
+      expect(() => buildCsp({ strict: true })).toThrow("buildCsp: strict mode requires a nonce");
       expect(() => buildCsp({ strict: true, nonce: "" })).toThrow(
         "buildCsp: strict mode requires a nonce",
       );
@@ -180,6 +175,83 @@ describe("CSP builder", () => {
         "connect-src 'self' https://soroban-testnet.stellar.org https://soroban-mainnet.stellar.org;",
       );
       expect(withoutRpc).not.toContain(customRpc);
+    });
+  });
+
+  describe("indexerUrl handling", () => {
+    it("indexerUrl is appended to connect-src when provided", () => {
+      const customIndexer = "https://indexer.example.com";
+      const withIndexer = buildCsp({
+        strict: true,
+        nonce: "abc",
+        indexerUrl: customIndexer,
+      });
+      expect(withIndexer).toContain(
+        `connect-src 'self' https://soroban-testnet.stellar.org https://soroban-mainnet.stellar.org ${customIndexer}`,
+      );
+
+      const withoutIndexer = buildCsp({ strict: true, nonce: "abc" });
+      expect(withoutIndexer).not.toContain(customIndexer);
+    });
+
+    it("appends both rpcUrl and indexerUrl when both are provided", () => {
+      const customRpc = "https://custom-rpc.example.com";
+      const customIndexer = "https://indexer.example.com";
+      const withBoth = buildCsp({
+        strict: true,
+        nonce: "abc",
+        rpcUrl: customRpc,
+        indexerUrl: customIndexer,
+      });
+      expect(withBoth).toContain(
+        `connect-src 'self' https://soroban-testnet.stellar.org https://soroban-mainnet.stellar.org ${customRpc} ${customIndexer}`,
+      );
+    });
+
+    it("supports indexerUrl in baseline non-strict mode", () => {
+      const customIndexer = "https://indexer.example.com";
+      const csp = buildCsp({
+        strict: false,
+        indexerUrl: customIndexer,
+      });
+      expect(csp).toContain(
+        `connect-src 'self' https://soroban-testnet.stellar.org https://soroban-mainnet.stellar.org ${customIndexer}`,
+      );
+    });
+  });
+
+  describe("frameAncestors handling", () => {
+    it("uses custom frameAncestors in strict mode when provided", () => {
+      const csp = buildCsp({
+        strict: true,
+        nonce: "abc",
+        frameAncestors: "*",
+      });
+      expect(csp).toContain("frame-ancestors *");
+      expect(csp).not.toContain("frame-ancestors 'none'");
+    });
+
+    it("uses custom frameAncestors in non-strict mode when provided", () => {
+      const csp = buildCsp({
+        strict: false,
+        frameAncestors: "https://partner.example.com",
+      });
+      expect(csp).toContain("frame-ancestors https://partner.example.com");
+    });
+
+    it("defaults to 'none' in strict mode when frameAncestors is omitted", () => {
+      const csp = buildCsp({ strict: true, nonce: "abc" });
+      expect(csp).toContain("frame-ancestors 'none'");
+    });
+
+    it("resolves badge frame ancestors properly with resolveBadgeFrameAncestors", () => {
+      expect(resolveBadgeFrameAncestors(undefined)).toBe("*");
+      expect(resolveBadgeFrameAncestors("")).toBe("*");
+      expect(resolveBadgeFrameAncestors("   ")).toBe("*");
+      expect(resolveBadgeFrameAncestors("https://app.example.com")).toBe("https://app.example.com");
+      expect(resolveBadgeFrameAncestors("https://app.example.com, https://partner.org")).toBe(
+        "https://app.example.com https://partner.org",
+      );
     });
   });
 

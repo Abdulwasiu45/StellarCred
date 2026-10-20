@@ -11,6 +11,7 @@ import {
   buildCsp,
   generateNonce,
   resolveCspMode,
+  resolveBadgeFrameAncestors,
   CSP_REPORT_PATH,
   CSP_REPORT_GROUP,
 } from "@/lib/csp.mjs";
@@ -18,7 +19,7 @@ import {
 function resolveRequestId(inbound: string | null | undefined): string {
   const REQUEST_ID_RE = /^[a-zA-Z0-9_-]{1,64}$/;
   if (inbound && REQUEST_ID_RE.test(inbound)) return inbound;
-  
+
   // Use Web Crypto API (available in edge runtime) instead of Node.js crypto
   const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);
@@ -31,7 +32,7 @@ export function middleware(request: NextRequest) {
   // Handle i18n routing first
   if (!request.nextUrl.pathname.startsWith("/api")) {
     const { pathname } = request.nextUrl;
-    
+
     // Check if pathname starts with a non-default locale (e.g. /es or /es/...)
     let locale: Locale = defaultLocale;
     let targetPath = pathname;
@@ -47,9 +48,12 @@ export function middleware(request: NextRequest) {
 
     const mode = resolveCspMode(process.env.CSP_MODE);
     const cspHeaderName =
-      mode === "enforce"
-        ? "Content-Security-Policy"
-        : "Content-Security-Policy-Report-Only";
+      mode === "enforce" ? "Content-Security-Policy" : "Content-Security-Policy-Report-Only";
+
+    const isBadgeRoute = targetPath === "/badge" || targetPath.startsWith("/badge/");
+    const frameAncestors = isBadgeRoute
+      ? resolveBadgeFrameAncestors(process.env.BADGE_ALLOWED_ORIGINS)
+      : undefined;
 
     // NEXT_PUBLIC_* values are inlined at build time in middleware, unlike headers() in
     // next.config.mjs, so they must be set at build time for the gating to match.
@@ -59,7 +63,9 @@ export function middleware(request: NextRequest) {
       nonce,
       walletConnectEnabled: Boolean(process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID),
       rpcUrl: process.env.NEXT_PUBLIC_RPC_URL,
+      indexerUrl: process.env.NEXT_PUBLIC_INDEXER_URL,
       reportEndpoint: CSP_REPORT_PATH,
+      frameAncestors,
     });
 
     const requestHeaders = new Headers(request.headers);

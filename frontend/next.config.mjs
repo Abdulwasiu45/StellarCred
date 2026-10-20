@@ -1,14 +1,13 @@
 import { createRequire } from "module";
 import withBundleAnalyzer from "@next/bundle-analyzer";
 import createNextIntlPlugin from "next-intl/plugin";
-import { buildCsp, resolveCspMode } from "./lib/csp.mjs";
+import { buildCsp, resolveCspMode, resolveBadgeFrameAncestors } from "./lib/csp.mjs";
 
 const withBundleReport = withBundleAnalyzer({
   enabled: process.env.ANALYZE === "true",
 });
 
 const withNextIntl = createNextIntlPlugin();
-
 
 const require = createRequire(import.meta.url);
 const bufferPath = require.resolve("buffer/");
@@ -103,26 +102,23 @@ const nextConfig = {
     const walletConnectEnabled = Boolean(process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID);
 
     // Build the legacy CSP string (only used when mode !== "enforce").
-    const csp = mode !== "enforce"
-      ? buildCsp({
-          strict: false,
-          walletConnectEnabled,
-          rpcUrl: process.env.NEXT_PUBLIC_RPC_URL,
-        })
-      : null;
+    const csp =
+      mode !== "enforce"
+        ? buildCsp({
+            strict: false,
+            walletConnectEnabled,
+            rpcUrl: process.env.NEXT_PUBLIC_RPC_URL,
+            indexerUrl: process.env.NEXT_PUBLIC_INDEXER_URL,
+          })
+        : null;
 
     // Allow framing for the badge route (#532): it's designed to be embedded
     // in third-party sites via iframe. An optional BADGE_ALLOWED_ORIGINS env
     // var can restrict which origins may embed it (comma-separated list);
     // defaults to allowing all origins when unset.
-    const badgeAllowedOrigins = process.env.BADGE_ALLOWED_ORIGINS
-      ? process.env.BADGE_ALLOWED_ORIGINS.split(",").map((o) => o.trim()).filter(Boolean)
-      : [];
-    
-    const badgeFrameAncestors =
-      badgeAllowedOrigins.length > 0
-        ? `frame-ancestors ${badgeAllowedOrigins.join(" ")}`
-        : "frame-ancestors *";
+    const badgeFrameAncestors = `frame-ancestors ${resolveBadgeFrameAncestors(
+      process.env.BADGE_ALLOWED_ORIGINS,
+    )}`;
 
     // buildCsp() returns a joined string ending with ";".
     // Append the frame-ancestors directive for each route variant.

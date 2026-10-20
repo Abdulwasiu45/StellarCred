@@ -23,6 +23,27 @@ export function resolveCspMode(value) {
 }
 
 /**
+ * Resolves the frame-ancestors directive value for the embeddable /badge route (#532).
+ * Returns the space-separated list of origins if BADGE_ALLOWED_ORIGINS is configured,
+ * or "*" to allow embedding from any origin.
+ *
+ * @param {string} [allowedOrigins] - Comma-separated list of permitted origins.
+ * @returns {string} frame-ancestors value (e.g. "*" or "https://example.com https://app.org").
+ */
+export function resolveBadgeFrameAncestors(allowedOrigins) {
+  if (typeof allowedOrigins === "string" && allowedOrigins.trim()) {
+    const origins = allowedOrigins
+      .split(",")
+      .map((o) => o.trim())
+      .filter(Boolean);
+    if (origins.length > 0) {
+      return origins.join(" ");
+    }
+  }
+  return "*";
+}
+
+/**
  * Generates a cryptographically random 16-byte nonce encoded in Base64.
  *
  * @returns {string} Base64-encoded nonce.
@@ -39,7 +60,9 @@ export function generateNonce() {
  * @property {string} [nonce] - Nonce for script-src in strict mode.
  * @property {boolean} [walletConnectEnabled=false] - Whether WalletConnect hosts should be permitted.
  * @property {string} [rpcUrl] - Optional custom Soroban RPC URL.
+ * @property {string} [indexerUrl] - Optional custom Indexer URL.
  * @property {string} [reportEndpoint] - Optional CSP violation report endpoint URL.
+ * @property {string} [frameAncestors] - Optional frame-ancestors value (defaults to 'none' in strict mode).
  */
 
 /**
@@ -54,7 +77,9 @@ export function buildCsp(options = {}) {
     nonce,
     walletConnectEnabled = false,
     rpcUrl,
+    indexerUrl,
     reportEndpoint,
+    frameAncestors,
   } = options;
 
   if (strict && !nonce) {
@@ -73,9 +98,7 @@ export function buildCsp(options = {}) {
 
   const csp = [
     "default-src 'self'",
-    ...(strict
-      ? []
-      : ["object-src 'none'", "base-uri 'self'", "form-action 'self'"]),
+    ...(strict ? [] : ["object-src 'none'", "base-uri 'self'", "form-action 'self'"]),
     scriptSrc,
     // React and Next emit inline style attributes, and nonces can't cover them.
     "style-src 'self' 'unsafe-inline'",
@@ -99,7 +122,7 @@ export function buildCsp(options = {}) {
       wcEnabled
         ? " wss://relay.walletconnect.com wss://relay.walletconnect.org https://explorer-api.walletconnect.com https://verify.walletconnect.com https://verify.walletconnect.org"
         : ""
-    }${rpcUrl ? " " + rpcUrl : ""}`,
+    }${rpcUrl ? " " + rpcUrl : ""}${indexerUrl ? " " + indexerUrl : ""}`,
   ];
 
   if (wcEnabled) {
@@ -113,9 +136,15 @@ export function buildCsp(options = {}) {
     csp.push("object-src 'none'");
     csp.push("base-uri 'self'");
     csp.push("form-action 'self'");
-    csp.push("frame-ancestors 'none'");
+    if (frameAncestors) {
+      csp.push(`frame-ancestors ${frameAncestors}`);
+    } else {
+      csp.push("frame-ancestors 'none'");
+    }
     csp.push("worker-src 'self'");
     csp.push("manifest-src 'self'");
+  } else if (frameAncestors) {
+    csp.push(`frame-ancestors ${frameAncestors}`);
   }
 
   if (reportEndpoint) {
