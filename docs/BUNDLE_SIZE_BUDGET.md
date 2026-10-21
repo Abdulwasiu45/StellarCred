@@ -13,8 +13,8 @@ The following optimizations have been applied to reduce the production bundle:
 1. **`@tabler/icons-react` per-icon imports** (`modularizeImports` in `next.config.mjs`)
    Barrel imports from `@tabler/icons-react` in 52+ files are automatically rewritten to per-icon ESM paths (e.g. `@tabler/icons-react/dist/esm/icons/IconCheck`). This prevents the full ~475 kB icon library from entering shared chunks when only a handful of icons are used per route. The package sets `sideEffects: false`, making the rewrite safe.
 
-2. **Dynamic imports for root-layout overlays** (`layout.tsx`)
-   `OnboardingWizard` (~18 kB file with many icons) and `OnboardingTour` are loaded lazily with `next/dynamic` (`ssr: false`). They are interactive-only overlays — not needed for initial render — so deferring them removes their weight from every route's critical JS path.
+2. **Dynamic imports for the root-layout overlay** (`layout.tsx`)
+   `OnboardingWizard` (~18 kB file with many icons) is loaded lazily with `next/dynamic` (`ssr: false`) via the `components/OnboardingOverlays.tsx` client wrapper (`ssr: false` is not allowed directly in a Server Component). It is an interactive-only overlay — not needed for initial render — so deferring it removes its weight from every route's critical JS path.
 
 3. **Lazy QR scanner** (`VerifyQrScannerModal.tsx`)
    `QrScanner` (which bundles `jsqr`, a ~60 kB camera-decoding library) is now loaded lazily via `next/dynamic` only when the user actually opens the QR scanning UI. This keeps `jsqr` out of the initial `/verify` route bundle.

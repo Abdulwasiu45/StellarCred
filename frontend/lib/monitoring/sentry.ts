@@ -4,9 +4,18 @@
 // Captures unhandled server errors with stack traces, environment tags, commit hashes,
 // and service context while guaranteeing zero sensitive payloads or PII escape.
 
-import crypto from "node:crypto";
 import type { NextRequest, NextResponse } from "next/server";
 import { logger, stripSensitiveFields } from "../logger";
+
+// This module is also imported from middleware.ts, which is bundled for the
+// Edge runtime and cannot resolve `node:crypto`. Web Crypto's getRandomValues
+// is available in the Node, Edge and browser runtimes, so ids are generated
+// from it instead (same hex output as crypto.randomUUID().replace(/-/g, "")).
+function randomHex(byteLength: number): string {
+  const bytes = new Uint8Array(byteLength);
+  globalThis.crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
 
 export interface SentryConfig {
   dsn?: string;
@@ -161,7 +170,7 @@ export class SentryClient {
    * Captures an exception with relevant tags and environment metadata.
    */
   async captureException(error: unknown, context: SentryErrorContext = {}): Promise<string> {
-    const eventId = crypto.randomUUID().replace(/-/g, "");
+    const eventId = randomHex(16);
     const errorObj = error instanceof Error ? error : new Error(String(error));
     const safeMsg = sanitizeErrorMessage(errorObj.message);
 
@@ -286,7 +295,7 @@ export function withSentryRouteHandler(
       return await handler(req, ...args);
     } catch (error) {
       const requestId =
-        req.headers.get("x-request-id") ?? crypto.randomUUID().replace(/-/g, "").slice(0, 16);
+        req.headers.get("x-request-id") ?? randomHex(8);
       const method = req.method;
       const path = req.nextUrl?.pathname ?? "unknown_endpoint";
 

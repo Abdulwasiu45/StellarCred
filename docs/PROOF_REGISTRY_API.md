@@ -162,6 +162,70 @@ fn submit_aggregate_proof(env, holder: Address, issuer_ids: Vec<Address>,
   the `"aggregate"` credential type; per-credential thresholds are extracted
   from the packed public inputs (age and income/funds layouts differ).
 
+### `submit_proof_with_nullifier`
+
+```rust
+fn submit_proof_with_nullifier(env, holder: Address, issuer_id: Address,
+                               credential_type: Symbol, proof: Bytes,
+                               public_inputs: Bytes, vk_version: Option<u32>,
+                               expiry: u64, app_context: BytesN<32>,
+                               nullifier: BytesN<32>)
+```
+
+- **Audience:** Holder
+- **Auth:** `holder.require_auth()` — inherited from `submit_proof`.
+- **Stability:** Stable
+- **Parameters:** `submit_proof`'s parameters, plus `app_context` (the
+  application the nullifier is scoped to) and `nullifier` (32-byte
+  per-application nullifier; see `deriveNullifier` in the SDK).
+- **Returns:** —
+- **Panics:** `NullifierAlreadyUsed (16)`, `SubmissionsPaused (11)`,
+  `InvalidExpiry (12)`, `IssuerNotTrusted (4)`, `IssuerKeyMismatch (5)`,
+  `VerificationFailed (2)`.
+- **Events:** `("proof_reg", "nullifier")` plus the usual `submitted` event.
+- **Notes:** records the nullifier and then delegates to `submit_proof` in the
+  same invocation, so the nullifier is bound to the proof atomically — if proof
+  verification fails, the whole call reverts, including the nullifier write.
+
+### `record_nullifier`
+
+```rust
+fn record_nullifier(env, app_context: BytesN<32>, nullifier: BytesN<32>)
+```
+
+- **Audience:** Integrator
+- **Auth:** None — no `require_auth`. Consuming a *fresh* nullifier is
+  permissionless (it costs only the transaction fee); replaying one that is
+  already recorded is what this function rejects. Proof-bound consumption goes
+  through `submit_proof_with_nullifier`, where the holder authorizes the proof.
+- **Stability:** Stable
+- **Parameters:** `app_context` — 32-byte application scope; `nullifier` —
+  32-byte per-application nullifier.
+- **Returns:** —
+- **Panics:** `SubmissionsPaused (11)`, `NullifierAlreadyUsed (16)`.
+- **Events:** `("proof_reg", "nullifier")` →
+  `EventNullifierUsed { app_context, nullifier, recorded_at }`.
+- **Notes:** one-per-person / Sybil-resistance guard (#395). The record lives in
+  persistent storage keyed by `(app_context, nullifier)`, so the same nullifier
+  can still be used once per *other* application context.
+
+### `is_nullifier_used`
+
+```rust
+fn is_nullifier_used(env, app_context: BytesN<32>, nullifier: BytesN<32>) -> bool
+```
+
+- **Audience:** Integrator
+- **Auth:** None — permissionless view call.
+- **Stability:** Stable
+- **Parameters:** `app_context`, `nullifier` — the same pair accepted by
+  `record_nullifier`.
+- **Returns:** `bool` — `true` when the nullifier has already been recorded for
+  that `app_context`.
+- **Panics:** — (never panics; returns `false` for unknown nullifiers).
+- **Notes:** pure storage read; use it to gate an action client-side *before*
+  paying for the `record_nullifier` transaction.
+
 ## 3. Reads (Integrator operations)
 
 All reads are permissionless view calls — no auth, no fees beyond the RPC call.
@@ -686,6 +750,7 @@ introspection views in §7.
 | `("proof_reg", "adm_canc")` | unit | `cancel_admin_proposal` |
 | `("proof_reg", "dlg_grant", credential_type)` | `EventVerificationGranted { holder, verifier, expiry }` | `grant_verification` |
 | `("proof_reg", "dlg_revok", credential_type)` | `EventVerificationRevoked { holder, verifier }` | `revoke_verification` |
+| `("proof_reg", "nullifier")` | `EventNullifierUsed { app_context, nullifier, recorded_at }` | `record_nullifier`, `submit_proof_with_nullifier` |
 
 Full payload/field documentation: [EVENTS.md](EVENTS.md).
 
@@ -708,6 +773,7 @@ Full payload/field documentation: [EVENTS.md](EVENTS.md).
 | 13 | `RoleNotHeld` | The required role has no holder (or the caller is not its holder). |
 | 14 | `RoleHolderMismatch` | `revoke_role` named an address that is not the current role holder. |
 | 15 | `NoPendingAdmin` | `accept_admin` called without a pending `propose_admin`. |
+| 16 | `NullifierAlreadyUsed` | `record_nullifier` / `submit_proof_with_nullifier` replayed a nullifier already consumed in this `app_context` (#395). |
 
 Client-side friendly messages: `frontend/lib/contract-errors.ts`
 (`PROOF_REGISTRY_ERRORS`). Cross-contract failures can also surface

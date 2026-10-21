@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, it, expect, beforeEach } from "vitest";
+import { afterAll, describe, it, expect, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import { createHmac } from "node:crypto";
 import { POST } from "../route";
@@ -26,6 +26,16 @@ function makeSignedRequest(
 
 describe("POST /api/webhooks/issuance (#846)", () => {
   const originalSecret = process.env.ISSUANCE_WEBHOOK_SECRET;
+
+  afterAll(() => {
+    // Restore the ambient secret so this suite does not leak its mutation into
+    // other test files running in the same worker process.
+    if (originalSecret === undefined) {
+      delete process.env.ISSUANCE_WEBHOOK_SECRET;
+    } else {
+      process.env.ISSUANCE_WEBHOOK_SECRET = originalSecret;
+    }
+  });
 
   beforeEach(() => {
     process.env.ISSUANCE_WEBHOOK_SECRET = TEST_SECRET;

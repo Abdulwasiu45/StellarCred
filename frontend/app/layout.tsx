@@ -12,9 +12,9 @@ import { WalletProvider } from "@/lib/wallet-context";
 import { ToastProvider } from "@/components/Toast";
 import { THEME_BOOT_SCRIPT } from "@/lib/theme";
 import type { Locale } from "@/i18n.config";
-// OnboardingTour and OnboardingWizard are deferred via next/dynamic(ssr:false)
-// inside this client wrapper. next/dynamic with ssr:false cannot be used
-// directly in a Server Component, so the call lives in a "use client" boundary.
+// OnboardingWizard is deferred via next/dynamic(ssr:false) inside this client
+// wrapper. next/dynamic with ssr:false cannot be used directly in a Server
+// Component, so the call lives in a "use client" boundary.
 import { OnboardingOverlays } from "@/components/OnboardingOverlays";
 
 // Fonts are vendored as latin-subset variable woff2 files (from Google Fonts)
