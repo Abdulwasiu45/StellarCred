@@ -4,6 +4,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import {
   SentryClient,
+  getSentryClient,
   initSentry,
   getSentryClient,
   sanitizeErrorMessage,
@@ -49,8 +50,7 @@ describe("Sentry Error Monitoring (#853)", () => {
   });
 
   it("sanitizes error messages containing emails, dates of birth, and IDs", () => {
-    const raw =
-      "Failed to process user@example.com born on 1990-05-15 with account 123456789";
+    const raw = "Failed to process user@example.com born on 1990-05-15 with account 123456789";
     const sanitized = sanitizeErrorMessage(raw);
 
     expect(sanitized).not.toContain("user@example.com");

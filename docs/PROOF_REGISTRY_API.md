@@ -161,6 +161,7 @@ fn submit_proof_with_nullifier(
 fn record_nullifier(env: Env, app_context: BytesN<32>, nullifier: BytesN<32>)
 ```
 
+refactor/holder-thin-orchestrator
 - **Audience:** Holder / Integrator
 - **Auth:** none (enforces paused check and duplicate nullifier rejection).
 - **Stability:** Stable
@@ -171,6 +172,18 @@ fn record_nullifier(env: Env, app_context: BytesN<32>, nullifier: BytesN<32>)
 - **Panics:** `SubmissionsPaused (11)`, `NullifierAlreadyUsed (16)`.
 - **Events:** `("proof_reg", "nullifier")` → `EventNullifierUsed { app_context, nullifier, recorded_at }`.
 - **Notes:** records a nullifier directly for a given application context without submitting a new proof.
+
+- **Audience:** Holder, Integrator
+- **Auth:** none (caller pays invocation fees).
+- **Stability:** Stable
+- **Parameters:**
+  - `app_context` — 32-byte application identifier context.
+  - `nullifier` — 32-byte unique nullifier hash.
+- **Returns:** —
+- **Panics:** `SubmissionsPaused (11)`, `NullifierAlreadyUsed (16)`.
+- **Events:** `("proof_reg", "nullifier")` → `EventNullifierUsed { app_context, nullifier, recorded_at }`.
+- **Notes:** Records a nullifier in persistent storage with `PROOF_TTL` extension to enforce Sybil resistance and prevent double-spending proofs. Panics with `NullifierAlreadyUsed (16)` if the nullifier was previously consumed in this application context.
+ main
 
 ### `submit_proofs`
 
