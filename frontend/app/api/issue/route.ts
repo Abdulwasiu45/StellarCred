@@ -36,6 +36,7 @@ import {
   createIssuerClient,
 } from "@/lib/issuer-service";
 import { resolveTenant, validateTenantCredentialTypes } from "@/lib/tenancy";
+import { equals } from "@/lib/crypto";
 
 const SIM_ACCOUNT =
   env.NEXT_PUBLIC_ISSUER_ADDRESS ?? "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
@@ -359,7 +360,7 @@ async function executeRequest(
       );
     }
     const localKey = localIssuerPubkeyBytes(customIssuerClient);
-    if (!Buffer.from(registered).equals(localKey)) {
+    if (!equals(registered, localKey)) {
       return sendResponse(
         NextResponse.json(
           {
