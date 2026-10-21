@@ -10,7 +10,7 @@ const TEST_SECRET = "test_issuance_secret_123456";
 function makeSignedRequest(
   body: string,
   secret = TEST_SECRET,
-  headerName = "x-issuance-signature"
+  headerName = "x-issuance-signature",
 ) {
   const sig = createHmac("sha256", secret).update(body).digest("hex");
   const headers = new Headers({
