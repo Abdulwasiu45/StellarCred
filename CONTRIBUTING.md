@@ -38,6 +38,25 @@ Two rules follow. The first is the one whose absence produced the duplicated
    root, `docs/EVENTS.md`; from another file in `docs/`, the sibling `EVENTS.md`;
    from a component, the full walk up (`../../docs/EVENTS.md`).
 
+### Export pipeline
+
+The admin export system (issues [#783](https://github.com/ToluLabs/StellarCred/issues/783), [#784](https://github.com/ToluLabs/StellarCred/issues/784), and [#788](https://github.com/ToluLabs/StellarCred/issues/788)) lives under:
+
+```
+frontend/lib/export-store.ts          ExportRecord store (create/list/get/revoke)
+frontend/lib/export-job-store.ts      Chunked ExportJob model and cursor handles
+frontend/lib/export-cursor.ts         HMAC-signed resumable cursor tokens
+frontend/lib/export-chunks.ts         serveExportChunk orchestrator
+frontend/lib/export-throttle.ts       Per-tenant rate limiting
+frontend/lib/export-concurrency.ts    Global concurrency cap
+frontend/lib/export-scheduler.ts      Cost-aware priority queue
+frontend/lib/export-metrics.ts        Backpressure metrics aggregator
+frontend/app/api/admin/exports/       API routes (list, get, revoke, audit, chunks, queue)
+frontend/app/admin/exports/           Admin web UI (Server Component + Server Action)
+```
+
+Full API reference, schema documentation, cURL and TypeScript examples, a contributor checklist, and testing guidance are in **[docs/exports.md](docs/exports.md)**.
+
 ### Writing a contract test
 
 Contract suites share one harness, `contracts/test_support`, so a test body is
