@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import crypto from 'crypto';
 import {
   createExportJob,
   getExportJob,
@@ -178,7 +179,6 @@ describe('Issue #789: Export Data Backend & Authorization', () => {
 
     it('rejects token with invalid base64 payload (parse error branch)', () => {
       // Create a valid signature for invalid JSON to exercise the catch branch
-      const crypto = require('crypto');
       const secret = process.env.DOWNLOAD_SIGNING_SECRET || 'stellarcred-secure-download-secret';
       const badPayload = Buffer.from('not-json!').toString('base64url');
       const sig = crypto.createHmac('sha256', secret).update(badPayload).digest('base64url');
