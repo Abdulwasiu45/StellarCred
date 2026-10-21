@@ -18,8 +18,10 @@ import {
   IconCloudUpload,
   IconStack2,
   IconDownload,
+  IconFileExport,
 } from "@tabler/icons-react";
 import { WalletButton } from "@/components/WalletButton";
+import { ExportVisibilitySettings } from "@/components/ExportVisibilitySettings";
 import { useWallet } from "@/lib/wallet-context";
 import { Badge } from "@/components/Badge";
 import { Check } from "@/components/Check";
@@ -66,6 +68,10 @@ const TransferExportModal = dynamic(
 );
 const TransferImportModal = dynamic(
   () => import("@/components/TransferImportModal").then((m) => m.TransferImportModal),
+  { ssr: false },
+);
+const ExportDataModal = dynamic(
+  () => import("@/components/ExportDataModal").then((m) => m.ExportDataModal),
   { ssr: false },
 );
 
@@ -328,6 +334,7 @@ function HolderInner() {
   const [detailCred, setDetailCred] = useState<Credential | null>(null);
   const [transferCred, setTransferCred] = useState<Credential | null>(null);
   const [importPayload, setImportPayload] = useState<string | null>(null);
+  const [showExportModal, setShowExportModal] = useState(false);
 
   useEffect(() => { loadCredentials().then(setCreds); }, []);
 
@@ -488,6 +495,15 @@ function HolderInner() {
           <a href="/presets" className="btn btn-secondary">
             Presets
           </a>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => setShowExportModal(true)}
+            id="btn-open-export-modal"
+          >
+            <IconFileExport size={15} style={{ marginRight: "0.3rem" }} />
+            Export Data
+          </button>
           <WalletButton />
         </div>
       </div>
@@ -798,6 +814,15 @@ function HolderInner() {
                   <IconDownload size={14} />
                   Export backup
                 </button>
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => setShowExportModal(true)}
+                  id="btn-export-data-action"
+                  title="Request scoped exports with secure expiring download links"
+                >
+                  <IconFileExport size={14} />
+                  Export data
+                </button>
               </div>
               <p className="faint" style={{ fontSize: "0.75rem", maxWidth: 560, lineHeight: 1.6, margin: 0 }}>
                 Credentials live only in this browser (localStorage) — export a backup
@@ -810,6 +835,7 @@ function HolderInner() {
                   Where your credentials live
                 </Link>
               </p>
+              <ExportVisibilitySettings />
             </div>
           )}
         </div>
@@ -847,6 +873,13 @@ function HolderInner() {
           onClose={() => setImportPayload(null)}
         />
       )}
+
+      <ExportDataModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        userAddress={address || undefined}
+        isAdmin={false}
+      />
 
       {/* Destructive Action Confirmation Modal */}
       {confirmBulkAction && (
