@@ -62,6 +62,8 @@ import {
   deriveNullifier,
   isNullifierUsed,
   verifyUniquePersonhood,
+  invalidateClaimCache,
+  clearClaimCache,
   TimeoutError,
   ConfigError,
   InvalidAddressError,
@@ -78,17 +80,9 @@ import {
 
 import { submitTransaction } from "./submit";
 
-import {
-  bootstrap,
-  fetchCapabilities,
-  validateCapabilitiesDescriptor,
-} from "./capabilities";
+import { bootstrap, fetchCapabilities, validateCapabilitiesDescriptor } from "./capabilities";
 
-import {
-  createWalletChallenge,
-  verifyWalletSignature,
-  verifyWalletClaim,
-} from "./challenge";
+import { createWalletChallenge, verifyWalletSignature, verifyWalletClaim } from "./challenge";
 
 import { subscribeClaims } from "./subscriptions";
 
@@ -111,6 +105,10 @@ export const StellarCred = {
   buildBadgeEmbedCode,
   parseReturnParams,
   watchClaim,
+  /** Drop cached claim reads for a wallet (see `configure({ claimCache })`). */
+  invalidate: invalidateClaimCache,
+  invalidateClaimCache,
+  clearClaimCache,
   withRetry,
   normalizeRpcError,
   classifyTransientFailure,
