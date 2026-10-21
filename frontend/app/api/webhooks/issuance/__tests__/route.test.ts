@@ -28,15 +28,11 @@ describe("POST /api/webhooks/issuance (#846)", () => {
   const originalSecret = process.env.ISSUANCE_WEBHOOK_SECRET;
 
   afterAll(() => {
- feat/issue-789-export-ui-flow
-    process.env.ISSUANCE_WEBHOOK_SECRET = originalSecret;
-
     if (originalSecret !== undefined) {
       process.env.ISSUANCE_WEBHOOK_SECRET = originalSecret;
     } else {
       delete process.env.ISSUANCE_WEBHOOK_SECRET;
     }
-> main
   });
 
   beforeEach(() => {

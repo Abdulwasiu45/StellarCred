@@ -5,6 +5,7 @@ import { NextRequest } from "next/server";
 import {
   SentryClient,
   initSentry,
+  getSentryClient,
   sanitizeErrorMessage,
   sanitizeHeaders,
   withSentryRouteHandler,
