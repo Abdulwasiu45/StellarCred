@@ -180,9 +180,12 @@ there**. Everything else has a designated home:
 2. Write the UI in `components/holder/`.
 3. Import and wire them in HolderPageClient.
 
-A CI guard (`scripts/check-holder-size.sh`) enforces a hard line-count ceiling on
-HolderPageClient.tsx. Adding inline feature code will fail CI. The guard was added
-in [#606](https://github.com/ToluLabs/StellarCred/issues/606).
+A CI guard (`scripts/check-page-client-size.sh`) enforces a hard line-count
+ceiling on the page-client shells — `HolderPageClient.tsx`, `VerifyPageClient.tsx`
+and `DocsPageClient.tsx`. Caps are pinned at their current sizes and only go down,
+so adding inline feature code fails CI. The guard was added in
+[#606](https://github.com/ToluLabs/StellarCred/issues/606) and extended in
+[#685](https://github.com/ToluLabs/StellarCred/issues/685).
 
 ## Development workflow
 
