@@ -1882,19 +1882,39 @@ export async function isNullifierUsed(
   nullifier: string,
   opts?: { requestTimeoutMs?: number; throwOnError?: boolean },
 ): Promise<boolean> {
-  const client = getRegistryClient();
+< feat/issue-789-export-ui-flow
+  const client = await getClient(opts?.throwOnError);
   if (!client) {
     if (opts?.throwOnError) {
-      throw new ConfigurationError("ProofRegistry client is not configured");
+      throw new ConfigError("ProofRegistry client is not configured");
     }
     return false;
   }
   try {
-    const isUsed = await client.is_nullifier_used({
+    const isUsed = await (client as any).is_nullifier_used({
       app_context: appContext,
       nullifier,
     });
     return isUsed;
+
+  const client = (await getClient(opts?.throwOnError)) as any;
+  if (!client) {
+    return false;
+  }
+  if (typeof client.is_nullifier_used !== "function") {
+    return false;
+  }
+  try {
+    const res: any = await withRequestTimeout(
+      () =>
+        client.is_nullifier_used({
+          app_context: appContext,
+          nullifier,
+        }),
+      opts?.requestTimeoutMs ?? _config.requestTimeoutMs,
+    );
+    return typeof res?.result === "boolean" ? res.result : Boolean(res);
+ main
   } catch (err) {
     if (opts?.throwOnError) {
       throw new RpcError(`Failed to check nullifier for context "${appContext}"`, { cause: err });
