@@ -20,6 +20,7 @@ describe("Sentry Error Monitoring (#853)", () => {
       service: "stellarcred-api",
       enabled: true,
     });
+    expect(getSentryClient()).toBe(client);
     client.clearRecordedEvents();
   });
 
