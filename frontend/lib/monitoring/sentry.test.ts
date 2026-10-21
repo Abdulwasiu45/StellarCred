@@ -6,6 +6,7 @@ import {
   SentryClient,
   getSentryClient,
   initSentry,
+  getSentryClient,
   sanitizeErrorMessage,
   sanitizeHeaders,
   withSentryRouteHandler,
