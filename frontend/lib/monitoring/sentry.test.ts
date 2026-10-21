@@ -5,6 +5,7 @@ import { NextRequest } from "next/server";
 import {
   SentryClient,
   initSentry,
+  getSentryClient,
   sanitizeErrorMessage,
   sanitizeHeaders,
   withSentryRouteHandler,
@@ -20,6 +21,7 @@ describe("Sentry Error Monitoring (#853)", () => {
       service: "stellarcred-api",
       enabled: true,
     });
+    expect(getSentryClient()).toBe(client);
     client.clearRecordedEvents();
   });
 
