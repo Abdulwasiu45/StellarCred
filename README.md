@@ -81,7 +81,7 @@ proof once and caches the result; every protocol afterwards reads
 ## Architecture & Overview
 
 For a detailed architectural description with diagrams, see the [Architecture Documentation](docs/ARCHITECTURE.md).
-For the authoritative specification of contract events, topic schemas, and indexer integration, see [EVENTS.md](EVENTS.md).
+For the authoritative specification of contract events, topic schemas, and indexer integration, see [docs/EVENTS.md](docs/EVENTS.md).
 
 ---
 
@@ -114,7 +114,7 @@ services/
 scripts/deploy.sh       deploy + wire + register issuer + install all VKs on testnet
 scripts/benchmark.sh    measure instruction budget for every public function on testnet
 BENCHMARKS.md           per-function instruction counts, ledger I/O, and fee estimates
-EVENTS.md               authoritative contract event topic & payload schemas
+docs/EVENTS.md          authoritative contract event topic & payload schemas
 docs/STORAGE_TTL.md     contract storage lifetime model, rent fees, and archival behavior
 ```
 
@@ -278,6 +278,14 @@ no StellarCred account and no server-side credential database. This means:
   code whose payload is encrypted (AES-256-GCM, PBKDF2 key derivation) before
   leaving the device — scan it on the other device and enter the passphrase to
   import.
+- **Choose which PII fields exports include.** On the Holder page, **Export
+  field visibility** controls the sensitive credential attribute value and
+  holder wallet address. Both are included by default (including for existing
+  browser profiles). Turning either off omits that key from credential JSON
+  backups, encrypted transfers, and Guardian recovery exports; proof-history
+  JSON/CSV contain proof metadata only. An export with an omitted field cannot
+  fully restore or prove that credential. Preferences are local to this browser
+  profile, and no admin override exists for local exports.
 - **What reaches the server and chain.** The only server round-trip is
   `POST /api/witness` (rate-limited, never logged or persisted), which runs the
   Noir circuit and returns witness bytes for in-browser proving. On chain, only
