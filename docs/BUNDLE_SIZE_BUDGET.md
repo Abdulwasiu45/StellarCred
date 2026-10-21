@@ -75,5 +75,5 @@ This generates visual HTML bundle reports at:
 The GitHub Actions workflow [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) automatically runs bundle budget checks in the `frontend` job on every PR and commit to `main`:
 
 1. **Build**: The `frontend` job builds the app with `pnpm build` and uploads the `.next` output as an artifact.
-2. **Budget Enforcement** (`Check bundle size budget`): Runs `pnpm size` immediately after the build. The step uses `continue-on-error: true` while the baseline is being established.
+2. **Budget Enforcement** (`Check bundle size budget`): Runs `pnpm size` immediately after the build. The step uses `continue-on-error: true` while the baseline is being established. It briefly switches the job to Node 22, because size-limit 13 imports `glob` from `node:fs/promises` (Node ≥ 22) and would otherwise crash on the job's Node 20 without measuring anything.
 3. **PR Reporting** (`Report bundle size on PR`): On pull requests, posts a detailed bundle size breakdown table as a PR comment using `andresz1/size-limit-action`.
