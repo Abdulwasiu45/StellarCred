@@ -36,6 +36,7 @@ import {
   createIssuerClient,
 } from "@/lib/issuer-service";
 import { resolveTenant, validateTenantCredentialTypes } from "@/lib/tenancy";
+import { normalizeAttributes } from "@/lib/attribute-normalizer";
 
 const SIM_ACCOUNT =
   env.NEXT_PUBLIC_ISSUER_ADDRESS ?? "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
@@ -272,13 +273,11 @@ async function executeRequest(
     );
   }
 
-  const attributes: Record<string, string> = { ...(body.attributes ?? {}) };
-  if (body.attribute !== undefined && body.type) {
-    if (body.type === "age") attributes.date_of_birth ??= body.attribute;
-    else if (body.type === "income") attributes.income ??= body.attribute;
-    else if (body.type === "jurisdiction") attributes.country_code ??= body.attribute;
-    else if (body.type === "employment") attributes.seniority ??= body.attribute;
-  }
+  const attributes: Record<string, string> = normalizeAttributes(
+    body.type,
+    body.attribute,
+    body.attributes,
+  );
 
   if (credentialTypes.length === 0) {
     return sendResponse(
