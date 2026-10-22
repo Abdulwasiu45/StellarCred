@@ -50,6 +50,9 @@ function baseConfig(overrides: Partial<Config> = {}): Config {
     rateLimitWindowMs: 60_000,
     rateLimitMax: 120,
     rateLimitEnabled: true,
+    integrityCheckEnabled: false,
+    integrityCheckIntervalMs: 900_000,
+    integrityCheckSampleSize: 25,
     ...overrides,
   } as Config;
 }
@@ -64,6 +67,7 @@ function makeClaim(overrides: Partial<ClaimInput> = {}): ClaimInput {
     ledger_sequence: 100,
     threshold: null,
     revoked: 0,
+    reason_code: "other",
     ...overrides,
   };
 }
@@ -299,6 +303,30 @@ function registerSuite(
       // A fresh verified event for the same (wallet, type) upserts revoked back to 0.
       await db.upsertClaim(makeClaim({ ledger_sequence: 999 }));
       expect((await db.claimsByWallet("GALICE"))[0].revoked).toBe(0);
+    });
+
+    it("sampleClaimsForVerification sweeps the whole table and tops up slices", async () => {
+      // The rotating sweep backing the on-chain state check (#612). The cursor
+      // is a durable position, so this asserts the invariant that matters —
+      // every claim eventually gets sampled, a slice is never short, and no
+      // claim appears twice in one slice — rather than a particular start.
+      const wallets = ["GA", "GB", "GC", "GD", "GE"];
+      for (const wallet of wallets) {
+        await db.upsertClaim(makeClaim({ wallet, credential_type: "kyc" }));
+      }
+
+      const seen: string[] = [];
+      for (let pass = 0; pass < wallets.length; pass++) {
+        const slice = await db.sampleClaimsForVerification(2);
+        expect(slice).toHaveLength(2);
+        expect(new Set(slice.map((r) => r.wallet)).size).toBe(2);
+        seen.push(...slice.map((r) => r.wallet));
+      }
+      expect(new Set(seen)).toHaveProperty("size", wallets.length);
+    });
+
+    it("sampleClaimsForVerification returns an empty slice on an empty table", async () => {
+      expect(await db.sampleClaimsForVerification(5)).toEqual([]);
     });
   });
 }

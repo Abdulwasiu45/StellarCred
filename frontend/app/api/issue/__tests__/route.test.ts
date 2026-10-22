@@ -68,10 +68,10 @@ async function loadRoute() {
   return import("../route");
 }
 
-function postRequest(body: unknown) {
+function postRequest(body: unknown, headers: Record<string, string> = {}) {
   return new NextRequest("http://localhost/api/issue", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...headers },
     body: JSON.stringify(body),
   });
 }
@@ -318,6 +318,143 @@ describe("validation", () => {
 
     const res = await POST(postRequest({ type: "kyc", issuerId: ISSUER_ID }));
     expect(res.status).toBe(400);
+  });
+});
+
+describe("idempotency", () => {
+  it("replays completed issuance with a redacted marker and stores no credential material", async () => {
+    delete process.env.ISSUER_PRIVATE_KEY;
+    const { POST } = await loadRoute();
+    const { idempotencyGet } = await import("@/lib/idempotency");
+    const { IssuerClient } = await import("@stellarcred/issuer");
+    const issueSpy = vi.spyOn(IssuerClient.prototype, "issue");
+    const key = "issue-redacted-replay";
+    const body = {
+      credential_types: ["age"],
+      holder: HOLDER,
+      issuerId: ISSUER_ID,
+      attributes: { date_of_birth: "1995-06-15" },
+    };
+
+    const first = await POST(
+      postRequest(body, { "Idempotency-Key": key }),
+    );
+    expect(first.status).toBe(200);
+    await expect(first.json()).resolves.toMatchObject({
+      credentials: [expect.objectContaining({ type: "age" })],
+    });
+    expect(issueSpy).toHaveBeenCalledTimes(1);
+
+    const serializedRecord = JSON.stringify(idempotencyGet(key));
+    expect(serializedRecord).toContain('"kind":"completed"');
+    for (const prohibited of [
+      "1995-06-15",
+      "credentials",
+      "value",
+      "salt",
+      "commitment",
+      "sig",
+    ]) {
+      expect(serializedRecord).not.toContain(prohibited);
+    }
+
+    const replay = await POST(
+      postRequest(body, { "Idempotency-Key": key }),
+    );
+    expect(replay.status).toBe(409);
+    expect(replay.headers.get("X-Idempotent")).toBe("true");
+    expect(replay.headers.get("X-Idempotency-Replay")).toBe("redacted");
+    await expect(replay.json()).resolves.toMatchObject({
+      code: "IDEMPOTENCY_RESPONSE_REDACTED",
+    });
+    expect(issueSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("replays a Persona redirect without retaining request attributes", async () => {
+    delete process.env.ISSUER_PRIVATE_KEY;
+    process.env.PERSONA_API_KEY = "test-persona-key";
+    process.env.PERSONA_KYC_TEMPLATE_ID = "itmpl_test";
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: { id: "inq_idempotency" } }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { POST } = await loadRoute();
+    const { idempotencyGet } = await import("@/lib/idempotency");
+    const key = "persona-redirect-replay";
+    const body = {
+      credential_types: ["kyc"],
+      holder: HOLDER,
+      issuerId: ISSUER_ID,
+      attributes: { date_of_birth: "1995-06-15" },
+    };
+
+    const first = await POST(
+      postRequest(body, { "Idempotency-Key": key }),
+    );
+    expect(first.status).toBe(202);
+    const firstBody = await first.json();
+    expect(firstBody).toMatchObject({
+      needsPersona: true,
+      inquiryId: "inq_idempotency",
+    });
+
+    const serializedRecord = JSON.stringify(idempotencyGet(key));
+    expect(serializedRecord).toContain('"kind":"persona_pending"');
+    expect(serializedRecord).not.toContain("attributes");
+    expect(serializedRecord).not.toContain("date_of_birth");
+    expect(serializedRecord).not.toContain("1995-06-15");
+
+    const replay = await POST(
+      postRequest(body, { "Idempotency-Key": key }),
+    );
+    expect(replay.status).toBe(202);
+    expect(replay.headers.get("X-Idempotent")).toBe("true");
+    await expect(replay.json()).resolves.toEqual(firstBody);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps simultaneous retries single-flight after a failed leader", async () => {
+    delete process.env.ISSUER_PRIVATE_KEY;
+    const { POST } = await loadRoute();
+    const { IssuerClient } = await import("@stellarcred/issuer");
+    let signalFirstIssueStarted!: () => void;
+    const firstIssueStarted = new Promise<void>((resolve) => {
+      signalFirstIssueStarted = resolve;
+    });
+    let rejectFirstIssue!: (reason?: unknown) => void;
+    const firstIssue = new Promise<never>((_resolve, reject) => {
+      rejectFirstIssue = reject;
+    });
+    const issueSpy = vi
+      .spyOn(IssuerClient.prototype, "issue")
+      .mockImplementationOnce(async () => {
+        signalFirstIssueStarted();
+        return firstIssue;
+      });
+    const body = {
+      credential_types: ["age"],
+      holder: HOLDER,
+      issuerId: ISSUER_ID,
+      attributes: { date_of_birth: "1995-06-15" },
+    };
+    const headers = { "Idempotency-Key": "failed-leader-retry" };
+
+    const leader = POST(postRequest(body, headers));
+    await firstIssueStarted;
+    const duplicateOne = POST(postRequest(body, headers));
+    const duplicateTwo = POST(postRequest(body, headers));
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    rejectFirstIssue(new Error("leader failed"));
+
+    const responses = await Promise.all([leader, duplicateOne, duplicateTwo]);
+    expect(responses.map((response) => response.status).sort()).toEqual([
+      200,
+      409,
+      500,
+    ]);
+    expect(issueSpy).toHaveBeenCalledTimes(2);
   });
 });
 

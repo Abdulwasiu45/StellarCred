@@ -18,7 +18,7 @@
 //   1. the structured log stream (every pino level, every argument)
 //   2. the on-disk audit log file
 //   3. the error-reporting webhook payload
-//   4. the idempotency cache (which caches a serialized response body)
+//   4. the idempotency cache (which retains only minimal replay markers)
 //   5. the persisted Persona context — the server-side pending-inquiry record
 //      AND the client-side sessionStorage resume blob
 //   6. the HTTP response body
@@ -422,7 +422,8 @@ describe("identity fields never reach storage or logs during issuance (#627)", (
       // The happy path must still have produced real audit, cache, and log
       // output; otherwise the assertions above would pass vacuously.
       expect(sinks["audit log file"]).toContain("commitment");
-      expect(sinks["idempotency cache"]).toContain("commitment");
+      expect(sinks["idempotency cache"]).toContain('"kind":"completed"');
+      expect(sinks["idempotency cache"]).not.toContain("commitment");
       expect(sinks["log stream"]).toContain("signing_success");
     } finally {
       rmSync(auditFile, { force: true });
@@ -445,17 +446,19 @@ describe("identity fields never reach storage or logs during issuance (#627)", (
 
       const first = await flow.post(body, key);
       expect(first.status).toBe(200);
-      await first.text(); // drain, so sendResponse caches the body
+      await first.text();
 
-      // Same key again: served entirely from the serialized cache entry, with
-      // no provider call and no signing at all.
+      // Same key again receives a redacted marker, with no provider call or
+      // signing and no credential material retained for replay.
       const replay = await flow.post(body, key);
-      expect(replay.status).toBe(200);
+      expect(replay.status).toBe(409);
       expect(replay.headers.get("X-Idempotent")).toBe("true");
+      expect(replay.headers.get("X-Idempotency-Replay")).toBe("redacted");
       const replayText = await replay.text();
 
       const sinks = await flow.sinks();
-      expect(sinks["idempotency cache"]).toContain("commitment");
+      expect(sinks["idempotency cache"]).toContain('"kind":"completed"');
+      expect(sinks["idempotency cache"]).not.toContain("commitment");
       expectNoIdentityLeak({ ...sinks, "response body (replay)": replayText });
     } finally {
       rmSync(auditFile, { force: true });
@@ -495,7 +498,7 @@ describe("identity fields never reach storage or logs during issuance (#627)", (
 
       const sinks = await flow.sinks();
       expect(sinks["log stream"]).toContain("verification_failed");
-      expect(sinks["idempotency cache"]).toContain("403");
+      expect(sinks["idempotency cache"]).toContain("null");
       expectNoIdentityLeak({ ...sinks, "response body": await res.text() });
     } finally {
       rmSync(auditFile, { force: true });

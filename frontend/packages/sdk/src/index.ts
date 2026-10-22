@@ -28,12 +28,16 @@
 //   const ok = await StellarCred.hasClaim(walletAddress, "kyc");
 
 export * from "./claims";
+export * from "./capabilities";
 export * from "./challenge";
 export * from "./subscriptions";
+export * from "./errors"; // Typed error taxonomy (#404)
+export { submitTransaction } from "./submit"; // Transaction submission with retry (#744)
+export type { SubmitTransactionOptions } from "./submit";
 export { createClaimGate } from "./core";
 export type { ClaimGateConfig, ClaimGateState, ClaimGateListener, ClaimGate } from "./core";
 export { useStellarCred } from "./react";
-export type { UseStellarCredOptions, UseStellarCredResult } from "./react";
+export type { UseStellarCredResult } from "./react";
 
 import {
   configure,
@@ -52,13 +56,33 @@ import {
   parseReturnParams,
   watchClaim,
   withRetry,
+  normalizeRpcError,
+  classifyTransientFailure,
   CLAIM_TYPES,
+  deriveNullifier,
+  isNullifierUsed,
+  verifyUniquePersonhood,
   TimeoutError,
   ConfigError,
   InvalidAddressError,
+} from "./claims";
+
+import {
   RpcError,
   IndexerError,
-} from "./claims";
+  ContractError,
+  ContractErrorCode,
+  parseContractError,
+  TransactionSubmissionError,
+} from "./errors";
+
+import { submitTransaction } from "./submit";
+
+import {
+  bootstrap,
+  fetchCapabilities,
+  validateCapabilitiesDescriptor,
+} from "./capabilities";
 
 import {
   createWalletChallenge,
@@ -70,6 +94,9 @@ import { subscribeClaims } from "./subscriptions";
 
 export const StellarCred = {
   configure,
+  bootstrap,
+  fetchCapabilities,
+  validateCapabilitiesDescriptor,
   healthCheck,
   isConfigured,
   hasClaim,
@@ -85,15 +112,25 @@ export const StellarCred = {
   parseReturnParams,
   watchClaim,
   withRetry,
+  normalizeRpcError,
+  classifyTransientFailure,
+  submitTransaction,
   subscribeClaims,
   createWalletChallenge,
   verifyWalletSignature,
   verifyWalletClaim,
   CLAIM_TYPES,
+  deriveNullifier,
+  isNullifierUsed,
+  verifyUniquePersonhood,
   TimeoutError,
   ConfigError,
   InvalidAddressError,
   RpcError,
   IndexerError,
+  ContractError,
+  ContractErrorCode,
+  TransactionSubmissionError,
+  parseContractError,
 };
 export default StellarCred;

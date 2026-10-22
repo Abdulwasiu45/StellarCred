@@ -24,6 +24,9 @@ function makeConfig(sqlitePath: string): Config {
     rateLimitWindowMs: 60000,
     rateLimitMax: 120,
     rateLimitEnabled: true,
+    integrityCheckEnabled: false,
+    integrityCheckIntervalMs: 900_000,
+    integrityCheckSampleSize: 25,
   };
 }
 
@@ -65,6 +68,7 @@ describe("claim lifecycle webhooks", () => {
       ledger_sequence: 42,
       threshold: null,
       revoked: 0,
+      reason_code: "other",
     });
 
     let captured:

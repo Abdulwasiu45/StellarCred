@@ -16,6 +16,8 @@
  *   app_submissions — third-party apps requesting credential access.
  *   webhook_subscriptions — wallet/claim-specific protocol notifications.
  *   webhook_deliveries — durable signed-event delivery and retry state.
+ *   data_integrity_state — singleton row holding the rotating sample cursor
+ *                     used by the on-chain state verification routine (#612).
  *
  * Only public chain data is stored — no identity fields.
  */
@@ -62,6 +64,7 @@ export function buildClaimsTable(dialect: SqlDialect): string {
   ${column("ledger_sequence", int, { notNull: true, default: "0" })},
   ${column("threshold", int)},
   ${column("revoked", dialect.flagType, { notNull: true, default: "0" })},
+  ${column("reason_code", "TEXT", { notNull: true, default: "'other'" })},
   ${dialect.claimsKeyClause}
 )`;
 }
@@ -122,10 +125,23 @@ export function buildSchema(dialect: SqlDialect): Schema {
   const seedCursor = `INSERT ${dialect.insertIgnorePrefix}INTO ledger_cursor (id, last_ledger)
   VALUES (1, 0)${dialect.conflictDoNothing}`;
 
+  // Same singleton shape as `ledger_cursor`: the highest `claims.id` already
+  // handed to the integrity sampler, so successive periodic checks walk the
+  // whole table instead of re-verifying the same head rows forever.
+  const dataIntegrityState = `CREATE TABLE IF NOT EXISTS data_integrity_state (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  ${column("last_claim_id", int, { notNull: true, default: "0" })}
+)`;
+
+  const seedDataIntegrityState = `INSERT ${dialect.insertIgnorePrefix}INTO data_integrity_state (id, last_claim_id)
+  VALUES (1, 0)${dialect.conflictDoNothing}`;
+
   const tables = [
     claims,
     ledgerCursor,
     seedCursor,
+    dataIntegrityState,
+    seedDataIntegrityState,
     appSubmissions,
     webhookSubscriptions,
     webhookDeliveries,

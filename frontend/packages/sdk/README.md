@@ -50,6 +50,12 @@ StellarCred.configure({
 const eligible = await StellarCred.hasClaim(walletAddress, "kyc");
 ```
 
+> **TypeScript example**: a minimal, CI-typechecked walkthrough — typed claim
+> reads, creating and signing a transaction, and the challenge flow — lives in
+> [`examples/typescript-quickstart`](../../../examples/typescript-quickstart) and
+> is explained in
+> [`docs/SDK_TYPESCRIPT_EXAMPLE.md`](../../../docs/SDK_TYPESCRIPT_EXAMPLE.md).
+
 ## Configuration
 
 Call `configure()` once before any other call, or set environment variables — both approaches work in Node.js, Next.js, and edge runtimes.
@@ -85,6 +91,32 @@ behavior: it returns `false` or an empty result by default, and throws
 Setting `STELLARCRED_INDEXER_URL` alone changes nothing: reads still go to the
 chain until you pass `source` explicitly. See
 [Indexer fast path](#indexer-fast-path-optional).
+
+## Bootstrapping from a deployment (capability descriptor)
+
+Instead of supplying contract IDs one by one, the SDK can configure itself
+from a deployment's machine-readable capability descriptor (issue #639) —
+you supply a single URL and the descriptor provides the network passphrase,
+RPC URL, and ProofRegistry contract ID:
+
+```ts
+// One-URL setup: fetch {base}/api/capabilities and apply it.
+await StellarCred.bootstrap({ descriptorUrl: "https://app.example.com/api/capabilities" });
+
+// ...or rely on the configured/default baseUrl:
+await StellarCred.bootstrap(); // fetches {baseUrl}/api/capabilities
+
+const ok = await StellarCred.hasClaim(wallet, "kyc");
+```
+
+`bootstrap()` throws `ConfigError` when the descriptor is unreachable,
+malformed, or has no `proof_registry` contract ID. The descriptor is public
+and cacheable — nothing sensitive — and also reports the credential types the
+deployment supports, a registered-issuer summary, the public indexer URL (when
+configured), whether sponsored submission is available, and the SDK version
+range known to work. Helpers `fetchCapabilities()` and
+`validateCapabilitiesDescriptor()` are exported for integrators that want the
+raw descriptor without reconfiguring.
 
 ## Contract Deployments
 
@@ -284,7 +316,7 @@ It consumes the indexer HTTP API (`services/indexer`) rather than ProofRegistry 
 | `GET /recent?limit=100[&cursor=…]` | the cursor-ordered verified-claims feed — every row newer than the previous `(ledger_sequence, id)` cursor is a potential `gained` for a watched wallet | every `pollMs` (default 10 s) |
 | `GET /claims?wallet=G…` | authoritative per-wallet snapshots (`revoked` flag + `expiry`) — detects `lost (revoked)` and reconciles state after downtime or reorg rollback | every `resyncMs` (default 60 s) |
 
-Expiry losses need no request at all: the indexer stores each proof's `expiry` timestamp, so a claim that lapses is reported as `lost` within one `pollMs` window. Event topic semantics match the on-chain `proof_reg.submitted` / `proof_reg.revoked` events documented in [EVENTS.md](../../../EVENTS.md); the subscription is eventually consistent with the indexer's configured `FINALITY_LAG` (≈30 s on defaults).
+Expiry losses need no request at all: the indexer stores each proof's `expiry` timestamp, so a claim that lapses is reported as `lost` within one `pollMs` window. Event topic semantics match the on-chain `proof_reg.submitted` / `proof_reg.revoked` events documented in [docs/EVENTS.md](../../../docs/EVENTS.md); the subscription is eventually consistent with the indexer's configured `FINALITY_LAG` (≈30 s on defaults).
 
 ```ts
 import { subscribeClaims } from "@stellarcred/sdk/server";
@@ -678,7 +710,7 @@ The `minThreshold` check calls `ProofRegistry.check_claim` on-chain, which compa
 
 ### Contract Events & Indexing
 
-For backend indexers, analytics services, or event-driven integrations monitoring proof submissions, revocations, and lifecycle events, see the authoritative [EVENTS.md](../../../EVENTS.md) (or [docs/EVENTS.md](../../../docs/EVENTS.md)) for complete topic schemas, payload structures, and drift guarantees.
+For backend indexers, analytics services, or event-driven integrations monitoring proof submissions, revocations, and lifecycle events, see the authoritative [docs/EVENTS.md](../../../docs/EVENTS.md) for complete topic schemas, payload structures, and drift guarantees.
 
 ## License
 
@@ -846,9 +878,10 @@ if (!result.ok) {
 createSession(req, result.wallet);
 ```
 
-### Complete Runnable Reference Application
+### Complete Runnable Reference Applications
 
-A complete, runnable application implementing this entire pattern end-to-end (redirect, return handling, challenge generation, signature verification, on-chain re-verification, session route gating, and failure-state diagnosis) is available at [`examples/canonical-integration`](../../../examples/canonical-integration).
+- **Canonical Integration Example**: A complete, runnable application implementing this entire pattern end-to-end (redirect, return handling, challenge generation, signature verification, on-chain re-verification, session route gating, and failure-state diagnosis) is available at [`examples/canonical-integration`](../../../examples/canonical-integration).
+- **TypeScript SDK Example**: A minimal, typed example demonstrating SDK initialization, credential verification, wallet challenge signing, and credential-gated Stellar transaction creation with `@stellar/stellar-sdk` is available at [`examples/typescript`](../../../examples/typescript).
 
 ---
 
@@ -872,4 +905,18 @@ The SDK follows [Semantic Versioning](https://semver.org/). Releases are fully a
    - Generates release notes from conventional commit messages.
    - Creates an official GitHub Release with release artifacts.
    - Publishes `@stellarcred/sdk` with public access to the npm registry using `NPM_TOKEN`.
+
+---
+
+## Tree-Shaking & Bundle Optimization
+
+`@stellarcred/sdk` is designed for minimal bundle overhead across both browser and server applications:
+
+- **`sideEffects: false`**: Configured in `package.json` to enable full dead-code elimination in modern bundlers (Webpack, Vite, Rollup, Next.js).
+- **Subpath entrypoints**:
+  - `import StellarCred from "@stellarcred/sdk"`: Primary client entrypoint.
+  - `import StellarCred from "@stellarcred/sdk/server"`: Node.js and Edge backend runtimes.
+- **Dynamic On-Demand Module Loading**:
+  - Heavy RPC modules and Soroban contract bindings (`@stellar/stellar-sdk` and `proof-registry`) are loaded on-demand via dynamic `import()` only when on-chain contract queries (`hasClaim`, `getClaim`) are executed.
+  - Offline helpers like `buildVerifyUrl()`, `buildBadgeUrl()`, `buildBadgeEmbedCode()`, `CLAIM_TYPES`, `TimeoutError`, and `createClaimGate()` execute with zero network overhead and without loading heavy Soroban dependencies.
 

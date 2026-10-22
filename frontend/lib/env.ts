@@ -30,6 +30,7 @@ const SERVER_SECRET_KEYS = [
   "PLAID_SECRET",
   "PLAID_ACCESS_TOKEN",
   "PLAID_ACCESS_TOKENS",
+  "ISSUANCE_WEBHOOK_SECRET",
 ] as const;
 
 const envSchema = z
@@ -82,6 +83,14 @@ const envSchema = z
     // app/api/issuer-stats/route.ts reads it, so it never needs a
     // NEXT_PUBLIC_ prefix. Defaults to the indexer's own default PORT (3001).
     INDEXER_URL: z.preprocess(
+      emptyToUndefined,
+      z.string().url().optional(),
+    ),
+    // Public indexer URL — included in the /api/capabilities descriptor
+    // (issue #639) so integrators can discover the indexer. Only set this
+    // when the indexer is safe to expose publicly; INDEXER_URL above may
+    // point at a private URL and is never published.
+    NEXT_PUBLIC_INDEXER_URL: z.preprocess(
       emptyToUndefined,
       z.string().url().optional(),
     ),
@@ -157,6 +166,10 @@ const envSchema = z
     ),
     // Deprecated alias; OUTBOUND_SINK_URL is the shared setting going forward.
     ERROR_REPORTING_WEBHOOK: z.preprocess(emptyToUndefined, z.string().url().optional()),
+    // Sentry error monitoring DSN (#853)
+    SENTRY_DSN: z.preprocess(emptyToUndefined, z.string().url().optional()),
+    // Asynchronous issuance callback webhook secret (#846)
+    ISSUANCE_WEBHOOK_SECRET: z.preprocess(emptyToUndefined, z.string().min(8).optional()),
   })
   .superRefine((val, ctx) => {
     // The /api/issue route previously discovered this combination missing at

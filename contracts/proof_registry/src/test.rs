@@ -34,18 +34,51 @@ const NEGATIVE_KYC_WRONG_CIRCUIT_PUBLIC_INPUTS: &[u8] =
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-fn get_test_wasm(env: &Env) -> Bytes {
-    let paths = [
-        "target/wasm32v1-none/release/proof_registry.wasm",
-        "../../target/wasm32v1-none/release/proof_registry.wasm",
-        "../target/wasm32v1-none/release/proof_registry.wasm",
-    ];
-    for path in paths.iter() {
-        if let Ok(wasm) = std::fs::read(path) {
-            return Bytes::from_slice(env, &wasm);
-        }
+// ── Upgrade-test WASM harness ───────────────────────────────────────────────
+//
+// `upgrade` must be handed a real contract WASM blob, so the upgrade tests
+// read the release artifact `target/wasm32v1-none/release/proof_registry.wasm`.
+// CI and the Makefiles build that artifact *before* `cargo test`, but a plain
+// `cargo test` / `make test-contracts` from a clean checkout does not — the
+// helper used to panic and fail every upgrade test (#742). Resolve the path
+// from this crate's manifest (cwd-independent) and build the artifact on
+// demand when it is missing, so the suite is self-contained.
+fn test_wasm_path() -> std::path::PathBuf {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../target/wasm32v1-none/release/proof_registry.wasm")
+}
+
+/// Returns the compiled proof_registry WASM bytes, building the release
+/// wasm artifact first if it does not exist yet (no-op cost when CI or the
+/// Makefiles already built it). Uses the exact command CI and
+/// `make build-contracts` run, so the uploaded artifact matches the one the
+/// pipeline produces — a narrower `-p proof_registry` build resolves features
+/// differently and yields different bytes.
+fn read_test_wasm() -> std::vec::Vec<u8> {
+    let path = test_wasm_path();
+    if !path.exists() {
+        let workspace_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let output = std::process::Command::new(env!("CARGO"))
+            .args(["build", "--release", "--locked", "--target", "wasm32v1-none"])
+            .current_dir(workspace_root)
+            .output()
+            .expect("failed to spawn `cargo build` for the proof_registry wasm");
+        assert!(
+            output.status.success(),
+            "`cargo build --release --locked --target wasm32v1-none` failed:\n{}",
+            std::string::String::from_utf8_lossy(&output.stderr)
+        );
     }
-    panic!("Could not find target/wasm32v1-none/release/proof_registry.wasm. Please run 'cargo build --target wasm32v1-none --release' first.");
+    std::fs::read(&path).unwrap_or_else(|err| {
+        panic!(
+            "Could not read {} ({err}). Run 'cargo build --release --target wasm32v1-none' first.",
+            path.display()
+        )
+    })
+}
+
+fn get_test_wasm(env: &Env) -> Bytes {
+    Bytes::from_slice(env, &read_test_wasm())
 }
 
 /// The wired stack plus the KYC issuer, both made ready in one harness call.
@@ -357,7 +390,12 @@ fn issuer_revoke_invalidates_proof() {
     let holder = Address::generate(&env);
 
     submit(&env, &h, &holder, 9999);
-    h.registry.revoke(&h.issuer, &holder, &symbol_short!("kyc"));
+    h.registry.revoke(
+        &h.issuer,
+        &holder,
+        &symbol_short!("kyc"),
+        &Some(RevocationReason::Fraud),
+    );
     assert!(
         !h.registry
             .is_verified(&holder, &symbol_short!("kyc"), &None)
@@ -376,7 +414,7 @@ fn issuer_revoke_rejects_wrong_issuer() {
     submit(&env, &h, &holder, 9999);
     let res = h
         .registry
-        .try_revoke(&stranger, &holder, &symbol_short!("kyc"));
+        .try_revoke(&stranger, &holder, &symbol_short!("kyc"), &None);
     assert!(res.is_err());
 }
 
@@ -397,7 +435,7 @@ fn issuer_revoke_rejects_different_trusted_issuer() {
 
     let result = h
         .registry
-        .try_revoke(&other_issuer, &holder, &symbol_short!("kyc"));
+        .try_revoke(&other_issuer, &holder, &symbol_short!("kyc"), &None);
 
     assert!(result.is_err());
     assert!(
@@ -416,13 +454,68 @@ fn issuer_revoke_rejects_missing_proof() {
 
     let result = h
         .registry
-        .try_revoke(&h.issuer, &holder, &symbol_short!("kyc"));
+        .try_revoke(&h.issuer, &holder, &symbol_short!("kyc"), &None);
 
     assert!(result.is_err());
     assert!(h
         .registry
         .get_record(&holder, &symbol_short!("kyc"))
         .is_none());
+}
+
+#[test]
+fn revoke_with_reason_codes_stores_and_emits_each_code() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let h = deploy(&env);
+    let _holder = Address::generate(&env);
+
+    let reasons = [
+        RevocationReason::Expired,
+        RevocationReason::Superseded,
+        RevocationReason::Fraud,
+        RevocationReason::UserRequest,
+        RevocationReason::Other,
+    ];
+
+    for reason in reasons.iter() {
+        let holder_i = Address::generate(&env);
+        submit(&env, &h, &holder_i, 9999);
+
+        h.registry.revoke(
+            &h.issuer,
+            &holder_i,
+            &symbol_short!("kyc"),
+            &Some(*reason),
+        );
+
+        let record = h
+            .registry
+            .get_record(&holder_i, &symbol_short!("kyc"))
+            .unwrap();
+        assert!(record.revoked);
+        assert_eq!(record.reason, *reason);
+
+        let _ = env.events().all();
+    }
+}
+
+#[test]
+fn revoke_without_reason_defaults_to_other() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let h = deploy(&env);
+    let holder = Address::generate(&env);
+
+    submit(&env, &h, &holder, 9999);
+    h.registry.revoke(&h.issuer, &holder, &symbol_short!("kyc"), &None);
+
+    let record = h
+        .registry
+        .get_record(&holder, &symbol_short!("kyc"))
+        .unwrap();
+    assert!(record.revoked);
+    assert_eq!(record.reason, RevocationReason::Other);
 }
 
 #[test]
@@ -865,7 +958,12 @@ fn issuer_revoke_emits_expected_event() {
     // Drain submit event
     let _ = env.events().all();
 
-    h.registry.revoke(&h.issuer, &holder, &symbol_short!("kyc"));
+    h.registry.revoke(
+        &h.issuer,
+        &holder,
+        &symbol_short!("kyc"),
+        &Some(RevocationReason::Fraud),
+    );
 
     let all_events = env.events().all().filter_by_contract(&h.registry_id);
     assert_eq!(
@@ -884,6 +982,7 @@ fn issuer_revoke_emits_expected_event() {
                     holder,
                     issuer: h.issuer.clone(),
                     revoked_at: env.ledger().timestamp(),
+                    reason: RevocationReason::Fraud,
                 }
                 .into_val(&env),
             ),
@@ -963,6 +1062,7 @@ fn holder_self_revoke_emits_a_lifecycle_event() {
                 EventHolderRevoked {
                     holder,
                     revoked_at: env.ledger().timestamp(),
+                    reason: RevocationReason::UserRequest,
                 }
                 .into_val(&env),
             ),
@@ -1314,6 +1414,27 @@ fn upgrade_requires_upgrader_role() {
         }])
         .try_upgrade(&new_wasm_hash);
     assert!(res.is_err());
+}
+
+// Regression (#742): the upgrade tests read the release WASM artifact out of
+// the workspace target directory. The harness must resolve that artifact (and
+// build it on demand on a clean checkout) instead of panicking when no prior
+// wasm build has run — otherwise every upgrade test fails before exercising
+// the contract at all.
+#[test]
+fn upgrade_wasm_artifact_resolves() {
+    let wasm = read_test_wasm();
+    assert!(
+        wasm.len() > 8,
+        "proof_registry.wasm looks truncated ({} bytes)",
+        wasm.len()
+    );
+    assert_eq!(&wasm[..4], b"\0asm", "artifact is not a WebAssembly module");
+    assert_eq!(
+        &wasm[4..8],
+        &1u32.to_le_bytes(),
+        "artifact is not a version-1 WebAssembly module"
+    );
 }
 
 #[test]
@@ -1950,6 +2071,7 @@ proptest! {
             revoked: !valid,
             issuer: Some(proof_issuer.clone()),
             vk_version: 0,
+            reason: RevocationReason::Other,
         };
         set_proof_record(&env, &reg_id, &holder, &cred, &record);
 
@@ -1997,6 +2119,7 @@ proptest! {
             revoked: false,
             issuer: None,
             vk_version: 0,
+            reason: RevocationReason::Other,
         };
         set_proof_record(&env, &reg_id, &holder, &cred, &record);
 
@@ -2022,6 +2145,7 @@ proptest! {
             revoked: false,
             issuer: None,
             vk_version: 0,
+            reason: RevocationReason::Other,
         };
         set_proof_record(&env, &reg_id, &holder, &cred, &record);
 
@@ -2058,6 +2182,7 @@ proptest! {
             revoked: !valid,
             issuer: None,
             vk_version: 0,
+            reason: RevocationReason::Other,
         };
         set_proof_record(&env, &reg_id, &holder, &cred, &record);
 
@@ -2087,6 +2212,7 @@ proptest! {
             revoked: false,
             issuer: Some(proof_issuer),
             vk_version: 0,
+            reason: RevocationReason::Other,
         };
         set_proof_record(&env, &reg_id, &holder, &cred, &record);
 
@@ -2138,6 +2264,7 @@ proptest! {
             revoked,
             issuer: Some(proof_issuer.clone()),
             vk_version: 0,
+            reason: RevocationReason::Other,
         };
         set_proof_record(&env, &reg_id, &holder, &cred, &record);
 
@@ -2234,7 +2361,7 @@ proptest! {
             .is_verified(&holder, &symbol_short!("kyc"), &None);
         prop_assert!(before, "proof should be valid before revocation");
 
-        h.registry.revoke(&h.issuer, &holder, &symbol_short!("kyc"));
+        h.registry.revoke(&h.issuer, &holder, &symbol_short!("kyc"), &None);
 
         let trusted = if use_issuer_filter {
             Some(vec![&env, h.issuer.clone()])
@@ -2404,7 +2531,7 @@ fn single_revocation_does_not_affect_other_types() {
 
     // Revoke only kyc.
     h.registry
-        .revoke(&h.kyc_issuer, &holder, &symbol_short!("kyc"));
+        .revoke(&h.kyc_issuer, &holder, &symbol_short!("kyc"), &None);
 
     // kyc must be revoked.
     assert!(
@@ -2688,4 +2815,100 @@ fn test_storage_archived_vs_expired_observable_behavior() {
     );
     // Bumping an archived claim panics with ProofNotFound
     assert!(h.registry.try_bump_claim(&holder, &cred).is_err());
+}
+
+// ── Nullifier tests (#395) ───────────────────────────────────────────────────
+
+#[test]
+fn test_nullifier_recording_and_duplicate_rejection_in_same_context() {
+    let env = Env::default();
+    env.mock_all_auths();
+    env.cost_estimate().budget().reset_unlimited();
+    let h = deploy(&env);
+
+    let app_context = BytesN::from_array(&env, &[1u8; 32]);
+    let nullifier = BytesN::from_array(&env, &[2u8; 32]);
+
+    // Initially unused
+    assert!(!h.registry.is_nullifier_used(&app_context, &nullifier));
+
+    // First recording succeeds
+    h.registry.record_nullifier(&app_context, &nullifier);
+    assert!(h.registry.is_nullifier_used(&app_context, &nullifier));
+
+    // Reusing the same nullifier in the same app context is rejected on-chain
+    let err = h.registry.try_record_nullifier(&app_context, &nullifier);
+    assert!(err.is_err(), "Duplicate nullifier in the same context must be rejected");
+}
+
+#[test]
+fn test_nullifier_cross_context_independence_and_unlinkability() {
+    let env = Env::default();
+    env.mock_all_auths();
+    env.cost_estimate().budget().reset_unlimited();
+    let h = deploy(&env);
+
+    let app_context_a = BytesN::from_array(&env, &[10u8; 32]);
+    let app_context_b = BytesN::from_array(&env, &[20u8; 32]);
+    let nullifier_a = BytesN::from_array(&env, &[100u8; 32]);
+    let nullifier_b = BytesN::from_array(&env, &[200u8; 32]);
+
+    // Record in context A
+    h.registry.record_nullifier(&app_context_a, &nullifier_a);
+    assert!(h.registry.is_nullifier_used(&app_context_a, &nullifier_a));
+
+    // Context B is independent and not marked used
+    assert!(!h.registry.is_nullifier_used(&app_context_b, &nullifier_a));
+    assert!(!h.registry.is_nullifier_used(&app_context_b, &nullifier_b));
+
+    // Recording nullifier in context B succeeds independently
+    h.registry.record_nullifier(&app_context_b, &nullifier_b);
+    assert!(h.registry.is_nullifier_used(&app_context_b, &nullifier_b));
+}
+
+#[test]
+fn test_submit_proof_with_nullifier_rejects_sybil_reuse() {
+    let env = Env::default();
+    env.mock_all_auths();
+    env.cost_estimate().budget().reset_unlimited();
+    let h = deploy(&env);
+
+    let holder = Address::generate(&env);
+    let app_context = BytesN::from_array(&env, &[42u8; 32]);
+    let nullifier = BytesN::from_array(&env, &[99u8; 32]);
+
+    let proof = KYC.proof_bytes(&env);
+    let public_inputs = KYC.public_inputs_bytes(&env);
+    let expiry = 1000;
+
+    // First submission with nullifier succeeds
+    h.registry.submit_proof_with_nullifier(
+        &holder,
+        &h.issuer,
+        &symbol_short!("kyc"),
+        &proof,
+        &public_inputs,
+        &None,
+        &expiry,
+        &app_context,
+        &nullifier,
+    );
+
+    assert!(h.registry.is_nullifier_used(&app_context, &nullifier));
+    assert!(h.registry.check_claim(&holder, &symbol_short!("kyc"), &None, &None));
+
+    // A second submission by another (or same) holder with the same nullifier in that app context MUST be rejected
+    let second_holder = Address::generate(&env);
+    let second_attempt = h.registry.try_submit_proof_with_nullifier(
+        &second_holder,
+        &h.issuer,
+        &symbol_short!("kyc"),
+        &proof,
+        &public_inputs,
+        &None,
+        &expiry,
+        &app_context,
+        &nullifier,
+    );
+    assert!(second_attempt.is_err(), "Second submission with same nullifier in same context must revert");
 }

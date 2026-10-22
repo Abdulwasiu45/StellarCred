@@ -39,6 +39,15 @@ export interface Config {
   apiKey?: string;
   /** HMAC key used to sign outbound claim lifecycle webhooks. */
   webhookSigningSecret?: string;
+  /**
+   * Run the on-chain data-integrity check (#612) on a schedule, re-reading a
+   * rotating sample of indexed claims out of ProofRegistry state.
+   */
+  integrityCheckEnabled: boolean;
+  /** Interval between integrity checks, in milliseconds. */
+  integrityCheckIntervalMs: number;
+  /** Claims compared against contract state per check. */
+  integrityCheckSampleSize: number;
 }
 
 function required(name: string): string {
@@ -119,6 +128,15 @@ export function loadConfig(): Config {
     throw new Error("WEBHOOK_SIGNING_SECRET must contain at least 32 characters");
   }
 
+  // ── On-chain data-integrity checks (#612) ──────────────────────────────────
+  // A periodic sampler keeps the derived claims table honest against the
+  // contract it was derived from. Values are clamped rather than rejected so a
+  // typo degrades to a sane schedule instead of taking the indexer down.
+  const integrityIntervalSec = Number(optional("INTEGRITY_CHECK_INTERVAL_SECONDS", "900"));
+  const integritySampleSize = Number(optional("INTEGRITY_CHECK_SAMPLE_SIZE", "25"));
+  const integrityCheckEnabled =
+    optional("INTEGRITY_CHECK_ENABLED", "true").toLowerCase() !== "false";
+
   return {
     stellarNetwork: network,
     horizonUrl: envHorizon ?? preset.horizonUrl,
@@ -138,5 +156,14 @@ export function loadConfig(): Config {
     rateLimitMax: Number.isFinite(maxReq) && maxReq > 0 ? maxReq : 120,
     rateLimitEnabled,
     webhookSigningSecret,
+    integrityCheckEnabled,
+    integrityCheckIntervalMs:
+      Number.isFinite(integrityIntervalSec) && integrityIntervalSec > 0
+        ? integrityIntervalSec * 1000
+        : 900_000,
+    integrityCheckSampleSize:
+      Number.isFinite(integritySampleSize) && integritySampleSize > 0
+        ? Math.floor(integritySampleSize)
+        : 25,
   };
 }

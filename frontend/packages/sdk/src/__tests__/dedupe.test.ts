@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import * as indexExports from "../index";
 import * as claimsExports from "../claims";
+import * as errorsExports from "../errors";
 import StellarCred from "../index";
 
 describe("SDK deduplication (#522)", () => {
@@ -27,9 +28,14 @@ describe("SDK deduplication (#522)", () => {
   it("exports identical error classes between index and claims", () => {
     expect(indexExports.ConfigError).toBe(claimsExports.ConfigError);
     expect(indexExports.InvalidAddressError).toBe(claimsExports.InvalidAddressError);
-    expect(indexExports.RpcError).toBe(claimsExports.RpcError);
     expect(indexExports.TimeoutError).toBe(claimsExports.TimeoutError);
     expect(indexExports.IndexerError).toBe(claimsExports.IndexerError);
+  });
+
+  it("exports RpcError from errors.ts (issue #404)", () => {
+    expect(indexExports.RpcError).toBe(errorsExports.RpcError);
+    expect(indexExports.ContractError).toBe(errorsExports.ContractError);
+    expect(indexExports.ContractErrorCode).toBe(errorsExports.ContractErrorCode);
   });
 
   it("exports identical CLAIM_TYPES array", () => {

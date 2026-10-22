@@ -37,6 +37,15 @@
  *     Body: { appName, description, requiredClaims, verifyUrl, contactEmail }
  *     → { id: number, status: "pending" }
  *
+ *   GET /integrity/status
+ *     → on-chain verification metadata for #612: when the last pass ran,
+ *       whether it read every sampled claim, and the most recent mismatches
+ *
+ *   POST /integrity/check[?sampleSize=25]
+ *     Body: none
+ *     → { checked, unreadable, mismatchCount, complete, durationSeconds,
+ *         mismatches }  (requires API_KEY when one is configured)
+ *
  *   POST /webhooks/subscriptions
  *     Body: { url, wallet, claimType } (requires API_KEY + WEBHOOK_SIGNING_SECRET)
  *     → { id, wallet, claimType }
@@ -69,6 +78,18 @@
  *                             the shape existing consumers (SDK/UI) already
  *                             code against, so it's pinned as-is rather than
  *                             changed to avoid a breaking wire-format change.
+ *   expired          boolean  DERIVED: expiry > 0 && expiry <= now. The
+ *                             contract enforces expiry lazily in is_verified
+ *                             and emits no expiry event, so this is computed
+ *                             by the indexer from the indexed `expiry`
+ *                             timestamp — see integrity.ts.
+ *   state            "active" | "expired" | "revoked"  DERIVED: revoked
+ *                             wins, then locally-expired, then active.
+ *
+ * Consumers that need authoritative answers for `state === "expired"` claims
+ * must make the live on-chain `is_verified` / `check_claim` call: once a
+ * claim's expiry passes, the contract's TTL-bumped entry can be evicted from
+ * state entirely, so the chain can no longer confirm anything about it.
  */
 
 import express, {
@@ -85,9 +106,12 @@ import { createCorsMiddleware } from "./cors";
 import { RateLimiter } from "./rate-limit";
 import type { RecentCursor } from "./db";
 import { requireAuth } from "./auth";
+import { claimState, isExpired } from "./integrity";
+import type { IntegrityChecker } from "./integrity";
 import { isIP } from "net";
 import { StrKey } from "@stellar/stellar-sdk";
 import { MAX_WEBHOOK_DELIVERY_ATTEMPTS } from "./webhooks";
+import { createGraphQLHandler } from "./graphql";
 
 const MAX_LIMIT = 100;
 const DEFAULT_LIMIT = 20;
@@ -131,10 +155,27 @@ export interface SerializedClaim {
   ledger_sequence: number;
   threshold: number | null;
   /** 0 or 1 — see the module doc comment for why this isn't a boolean. */
+  reason_code: string;
   revoked: number;
+  /** Derived, not event-sourced — see the module doc comment. */
+  expired: boolean;
+  /** Derived, not event-sourced — see the module doc comment. */
+  state: "active" | "expired" | "revoked";
 }
 
-export function serializeClaim(row: ClaimRow): SerializedClaim {
+/**
+ * `options.now` is injectable so the derived expiry fields are deterministic
+ * under test; it defaults to wall-clock time at call time.
+ *
+ * It is an options object rather than a bare second parameter on purpose: this
+ * is called as `claims.map(serializeClaim)`, and `map` hands the array *index*
+ * to the second position — a bare `now` parameter would silently receive `0`.
+ */
+export function serializeClaim(
+  row: ClaimRow,
+  options: { now?: number } = {}
+): SerializedClaim {
+  const now = options.now ?? Math.floor(Date.now() / 1000);
   return {
     id: Number(row.id),
     wallet: row.wallet,
@@ -144,7 +185,10 @@ export function serializeClaim(row: ClaimRow): SerializedClaim {
     expiry: Number(row.expiry),
     ledger_sequence: Number(row.ledger_sequence),
     threshold: row.threshold === null ? null : Number(row.threshold),
+    reason_code: row.reason_code,
     revoked: Number(row.revoked),
+    expired: isExpired(row, now),
+    state: claimState(row, now),
   };
 }
 
@@ -184,7 +228,12 @@ function asyncHandler(
   };
 }
 
-export function buildApp(db: Db, ingester: Ingester, config?: Partial<Config>): express.Application {
+export function buildApp(
+  db: Db,
+  ingester: Ingester,
+  config?: Partial<Config>,
+  integrity?: IntegrityChecker
+): express.Application {
   const app = express();
 
   // Trust reverse proxies (e.g. AWS ALB, Cloudflare, Nginx) so client IP extraction is accurate.
@@ -242,6 +291,13 @@ export function buildApp(db: Db, ingester: Ingester, config?: Partial<Config>): 
     }
     guard(req, res, next);
   };
+
+  // ── GraphQL endpoint ─────────────────────────────────────────────────────
+  // Provides a flexible, typed query interface over the claims store.
+  // Supports filtering by wallet, credential_type, issuer, active/revoked,
+  // and time range, with cursor-based pagination.
+  const graphqlHandler = createGraphQLHandler(db);
+  app.use("/graphql", graphqlHandler as any);
 
   // ── GET /health ──────────────────────────────────────────────────────────
   // Exposes ingester lag so operators can alert when the indexer falls behind.
@@ -343,7 +399,157 @@ export function buildApp(db: Db, ingester: Ingester, config?: Partial<Config>): 
       );
       lines.push(`indexer_ledgers_behind_head ${metrics.lag}`);
 
+      // ── On-chain data integrity (#612) ─────────────────────────────────────
+      // `indexer_state_mismatches` is the alerting series: it holds the number
+      // of claims in the last completed check that disagreed with the
+      // contract. It is a gauge, not a counter, so an alert can fire on "the
+      // indexer is currently wrong about N claims" and clear on its own once a
+      // later check (or a fix + reindex) resolves the drift. Only successfully
+      // read claims can produce a mismatch, so an RPC outage moves
+      // `indexer_state_check_errors` instead and never fakes a mismatch.
+      if (integrity) {
+        const im = integrity.getMetrics();
+
+        lines.push(
+          `# HELP indexer_state_mismatches Indexed claims that disagreed with on-chain contract state in the last completed integrity check.`,
+        );
+        lines.push(`# TYPE indexer_state_mismatches gauge`);
+        lines.push(`indexer_state_mismatches ${im.lastMismatchCount}`);
+
+        lines.push(
+          `# HELP indexer_state_checked Claims compared against contract state in the last completed integrity check.`,
+        );
+        lines.push(`# TYPE indexer_state_checked gauge`);
+        lines.push(`indexer_state_checked ${im.lastCheckedCount}`);
+
+        lines.push(
+          `# HELP indexer_state_mismatches_total Cumulative mismatches since the indexer started.`,
+        );
+        lines.push(`# TYPE indexer_state_mismatches_total counter`);
+        lines.push(`indexer_state_mismatches_total ${im.mismatchesTotal}`);
+
+        for (const [kind, count] of Object.entries(im.mismatchesByKind)) {
+          lines.push(
+            `# HELP indexer_state_mismatches_by_kind Cumulative mismatches by kind since the indexer started.`,
+          );
+          lines.push(`# TYPE indexer_state_mismatches_by_kind counter`);
+          lines.push(
+            `indexer_state_mismatches_by_kind{kind="${kind}"} ${count}`,
+          );
+        }
+
+        lines.push(
+          `# HELP indexer_state_checks_total Integrity checks run since the indexer started.`,
+        );
+        lines.push(`# TYPE indexer_state_checks_total counter`);
+        lines.push(`indexer_state_checks_total ${im.checksTotal}`);
+
+        lines.push(
+          `# HELP indexer_state_checks_incomplete_total Integrity checks in which at least one sampled claim could not be read from the contract.`,
+        );
+        lines.push(`# TYPE indexer_state_checks_incomplete_total counter`);
+        lines.push(
+          `indexer_state_checks_incomplete_total ${im.checksIncompleteTotal}`,
+        );
+
+        lines.push(
+          `# HELP indexer_state_check_errors Sampled claims the last integrity check could not read from the contract.`,
+        );
+        lines.push(`# TYPE indexer_state_check_errors gauge`);
+        lines.push(`indexer_state_check_errors ${im.lastUnreadableCount}`);
+
+        lines.push(
+          `# HELP indexer_state_last_check_timestamp_seconds Unix time of the last completed integrity check; 0 if none has run.`,
+        );
+        lines.push(`# TYPE indexer_state_last_check_timestamp_seconds gauge`);
+        lines.push(
+          `indexer_state_last_check_timestamp_seconds ${im.lastRunTimestampSeconds}`,
+        );
+
+        lines.push(
+          `# HELP indexer_state_last_success_timestamp_seconds Unix time of the last integrity check that read every sampled claim; 0 if none has.`,
+        );
+        lines.push(`# TYPE indexer_state_last_success_timestamp_seconds gauge`);
+        lines.push(
+          `indexer_state_last_success_timestamp_seconds ${im.lastSuccessTimestampSeconds}`,
+        );
+
+        lines.push(
+          `# HELP indexer_state_last_check_duration_seconds Duration of the last completed integrity check.`,
+        );
+        lines.push(`# TYPE indexer_state_last_check_duration_seconds gauge`);
+        lines.push(
+          `indexer_state_last_check_duration_seconds ${im.lastDurationSeconds}`,
+        );
+      }
+
       res.type("text/plain").send(lines.join("\n") + "\n");
+    })
+  );
+
+  // ── GET /integrity/status ────────────────────────────────────────────────
+  // Operational metadata about the on-chain state verification routine (#612):
+  // when it last ran, whether it read every sampled claim, and the most recent
+  // mismatches. Public like /health and /metrics — it reports indexer health,
+  // not wallet data — and omitted entirely when no checker is wired in.
+  app.get(
+    "/integrity/status",
+    asyncHandler(async (_req, res) => {
+      if (!integrity) {
+        res.status(404).json({ error: "integrity checks are not configured" });
+        return;
+      }
+      const report = integrity.getLastReport();
+      const metrics = integrity.getMetrics();
+      res.json({
+        lastRunTimestamp: report?.finishedAt ?? null,
+        lastSuccessTimestamp: metrics.lastSuccessTimestampSeconds
+          ? metrics.lastSuccessTimestampSeconds * 1000
+          : null,
+        checksTotal: metrics.checksTotal,
+        checksIncompleteTotal: metrics.checksIncompleteTotal,
+        mismatchCount: metrics.lastMismatchCount,
+        mismatchesTotal: metrics.mismatchesTotal,
+        lastCheckedCount: metrics.lastCheckedCount,
+        lastUnreadableCount: metrics.lastUnreadableCount,
+        lastError: metrics.lastError,
+        mismatches: report?.mismatches ?? [],
+      });
+    })
+  );
+
+  // ── POST /integrity/check ────────────────────────────────────────────────
+  // On-demand trigger for the same routine the schedule runs. Gated by API_KEY
+  // like the other expensive operations: each call costs one RPC read per
+  // sampled claim, and it moves the rotating sample cursor, so an unauthenticated
+  // caller could both exhaust the RPC quota and starve the periodic sweep.
+  app.post(
+    "/integrity/check",
+    guard,
+    asyncHandler(async (req, res) => {
+      if (!integrity) {
+        res.status(404).json({ error: "integrity checks are not configured" });
+        return;
+      }
+      const raw = req.query["sampleSize"];
+      const parsed = raw === undefined ? NaN : Number(raw);
+      if (raw !== undefined && (!Number.isInteger(parsed) || parsed < 1)) {
+        res.status(400).json({
+          error: "sampleSize must be a positive integer",
+        });
+        return;
+      }
+      const report = await integrity.run(
+        parsed ? { sampleSize: parsed } : undefined
+      );
+      res.json({
+        checked: report.checked,
+        unreadable: report.unreadable,
+        mismatchCount: report.mismatchCount,
+        complete: report.complete,
+        durationSeconds: report.durationSeconds,
+        mismatches: report.mismatches,
+      });
     })
   );
 
@@ -363,7 +569,7 @@ export function buildApp(db: Db, ingester: Ingester, config?: Partial<Config>): 
       }
 
       const claims = await db.claimsByWallet(wallet.trim());
-      res.json({ wallet: wallet.trim(), claims: claims.map(serializeClaim) });
+      res.json({ wallet: wallet.trim(), claims: claims.map((row) => serializeClaim(row)) });
     })
   );
 
@@ -403,7 +609,7 @@ export function buildApp(db: Db, ingester: Ingester, config?: Partial<Config>): 
 
       const { claims, nextCursor } = await db.recent(limit, cursor);
       res.json({
-        claims: claims.map(serializeClaim),
+        claims: claims.map((row) => serializeClaim(row)),
         limit,
         nextCursor: nextCursor ? encodeCursor(nextCursor) : null,
       });
@@ -442,7 +648,7 @@ export function buildApp(db: Db, ingester: Ingester, config?: Partial<Config>): 
       const rawClaims = await db.claimsByIssuer(issuer.trim());
       res.json({
         issuer: issuer.trim(),
-        credentials: rawClaims.map(serializeClaim),
+        credentials: rawClaims.map((row) => serializeClaim(row)),
       });
     })
   );
@@ -752,7 +958,6 @@ export function buildApp(db: Db, ingester: Ingester, config?: Partial<Config>): 
   });
 
   // ── Error handler ────────────────────────────────────────────────────────
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
     console.error("[indexer/api] unhandled error:", err);
     res.status(500).json({ error: "internal server error" });

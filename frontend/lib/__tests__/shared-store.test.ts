@@ -10,10 +10,10 @@ import {
 } from "../shared-store";
 import { checkLimitAsync } from "../rate-limit";
 import {
+  completedIdempotencyRecord,
   idempotencyGetAsync,
   idempotencySetAsync,
   idempotencyClear,
-  type CachedResponse,
 } from "../idempotency";
 
 describe("Shared Store (#523)", () => {
@@ -234,24 +234,26 @@ describe("Shared Store (#523)", () => {
       setSharedStoreForTesting(mockStore);
       idempotencyClear();
 
-      const sampleResponse: CachedResponse = {
-        status: 200,
-        body: JSON.stringify({ ok: true }),
-        headers: { "content-type": "application/json" },
-        createdAt: Date.now(),
-      };
+      const sampleRecord = completedIdempotencyRecord(
+        200,
+        JSON.stringify({ credentials: [{ value: "1995-06-15" }] }),
+      );
 
-      await idempotencySetAsync("idem-req-1", sampleResponse);
+      await idempotencySetAsync("idem-req-1", sampleRecord);
 
-      // Verify it was stored in the shared store
+      // Verify it was stored in the shared store without response contents.
       const stored = await mockStore.get("idem:idem-req-1");
       expect(stored).not.toBeNull();
-      expect(JSON.parse(stored!).status).toBe(200);
+      expect(JSON.parse(stored!)).toMatchObject({
+        version: 1,
+        kind: "completed",
+      });
+      expect(stored).not.toContain("credentials");
+      expect(stored).not.toContain("1995-06-15");
 
-      // Verify retrieval via async getter
+      // Verify retrieval via async getter.
       const fetched = await idempotencyGetAsync("idem-req-1");
-      expect(fetched).not.toBeNull();
-      expect(fetched?.status).toBe(200);
+      expect(fetched).toEqual(sampleRecord);
     });
   });
 });

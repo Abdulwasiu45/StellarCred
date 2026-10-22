@@ -29,6 +29,8 @@ export interface ClaimInput {
   threshold: number | null;
   /** 1 if the issuer has revoked this proof, 0 otherwise */
   revoked: number;
+  /** Revocation reason code: expired, superseded, fraud, user_request, other */
+  reason_code: string;
 }
 
 /** A claim row as read back from the database (includes the `id` cursor). */
@@ -103,8 +105,28 @@ export interface Db {
   /** Mark a claim as revoked. */
   revokeClaim(
     wallet: string,
-    credentialType: string
+    credentialType: string,
+    reasonCode?: string
   ): void | Promise<void>;
+
+  /** Run a filtered, paginated claim query (used by the GraphQL endpoint). */
+  queryClaims(
+    filter: {
+      wallet?: string;
+      credentialType?: string;
+      issuer?: string;
+      active?: boolean;
+      revoked?: boolean;
+      verifiedAfter?: number;
+      verifiedBefore?: number;
+    },
+    limit: number,
+    after?: string
+  ): Promise<{
+    rows: ClaimRow[];
+    hasNextPage: boolean;
+    endCursor: string;
+  }>;
   /** Read a specific claim before applying a revocation event. */
   claimByWalletAndType(wallet: string, credentialType: string): ClaimRow | undefined | Promise<ClaimRow | undefined>;
 
@@ -172,6 +194,16 @@ export interface Db {
   enqueueWebhookEvent(event: ClaimLifecycleEvent): void | Promise<void>;
   /** Return active claims whose expiry has passed. */
   expiredActiveClaims(now: number): ClaimRow[] | Promise<ClaimRow[]>;
+  /**
+   * Return the next slice of claims for the on-chain state verification routine
+   * (#612), advancing an internal cursor past the returned rows.
+   *
+   * The cursor makes successive calls walk the whole table in `id` order and
+   * wrap around, so a periodic check spread over many runs covers every claim
+   * instead of re-verifying the same head rows on every run. Checks never
+   * overlap, so `last_claim_id` needs no optimistic locking.
+   */
+  sampleClaimsForVerification(limit: number): ClaimRow[] | Promise<ClaimRow[]>;
   /** Return due, undelivered webhook attempts. */
   pendingWebhookDeliveries(now: number, limit: number, maxAttempts: number): WebhookDelivery[] | Promise<WebhookDelivery[]>;
   /** Persist one webhook attempt and its retry/delivery state. */
@@ -338,6 +370,7 @@ export function toClaimRow(row: Record<string, unknown>): ClaimRow {
     ledger_sequence: Number(row["ledger_sequence"]),
     threshold: row["threshold"] == null ? null : Number(row["threshold"]),
     revoked: Number(row["revoked"]),
+    reason_code: (row["reason_code"] as string) || "other",
   };
 }
 
