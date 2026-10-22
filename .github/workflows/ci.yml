@@ -609,6 +609,13 @@ jobs:
           npm run typecheck
           npm test
 
+      - name: Test TypeScript SDK example
+        working-directory: examples/typescript
+        run: |
+          npm ci
+          npm run typecheck
+          npm test
+
   # ── Indexer: SQLite + Postgres test matrix ─────────────────────────────────
   # Runs in parallel with contracts, circuits, and frontend.
   indexer:
