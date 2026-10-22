@@ -177,8 +177,6 @@ fn submit_proof_with_nullifier(
 fn record_nullifier(env: Env, app_context: BytesN<32>, nullifier: BytesN<32>)
 ```
 
- fix/resolve-leftover-merge-conflict-markers
-refactor/holder-thin-orchestrator
 - **Audience:** Holder / Integrator
 - **Auth:** none (enforces paused check and duplicate nullifier rejection).
 - **Stability:** Stable
