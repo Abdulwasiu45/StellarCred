@@ -1,4 +1,4 @@
-﻿# ProofRegistry — Contract API Reference
+# ProofRegistry — Contract API Reference
 
 Complete reference for every public entrypoint of the `ProofRegistry` contract
 (`contracts/proof_registry/src/lib.rs`).
