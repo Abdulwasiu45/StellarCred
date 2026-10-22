@@ -23,7 +23,7 @@ import {
   WalletConnectAllowedMethods,
   WALLET_CONNECT_ID,
 } from "@creit.tech/stellar-wallets-kit/modules/walletconnect.module";
-import { NETWORK, NETWORK_PASSPHRASE } from "./stellar";
+import { NETWORK, NETWORK_PASSPHRASE, NETWORK_PRESETS } from "./stellar";
 
 const APP_NETWORK =
   NETWORK === "mainnet" ? WalletNetwork.PUBLIC :
@@ -261,6 +261,109 @@ export async function restore(walletId: string): Promise<string> {
   k.setWallet(walletId);
   const { address } = await k.getAddress();
   return address;
+}
+
+/**
+ * Known Stellar wallet extensions and their install pages, used by the
+ * onboarding UI to surface clear installation guidance when no wallet is
+ * detected. The kit's `allowAllModules()` covers all of these at connect
+ * time; this list is for the pre-connect "how do I get a wallet?" affordance.
+ */
+export interface WalletInstallInfo {
+  id: string;
+  name: string;
+  installUrl: string;
+  /** Short description for the onboarding card. */
+  description: string;
+  /** True when the wallet is a browser extension (vs. web-based). */
+  isExtension: boolean;
+}
+
+export const KNOWN_WALLETS: WalletInstallInfo[] = [
+  {
+    id: FREIGHTER_ID,
+    name: "Freighter",
+    installUrl: "https://www.freighter.app/",
+    description: "Self-custody Stellar wallet — browser extension",
+    isExtension: true,
+  },
+  {
+    id: "xlxclarolet",
+    name: "xBull",
+    installUrl: "https://xbull.app/",
+    description: "Stellar wallet — browser extension",
+    isExtension: true,
+  },
+  {
+    id: "albedo",
+    name: "Albedo",
+    installUrl: "https://albedo.link/",
+    description: "Signing-only web wallet — no installation needed",
+    isExtension: false,
+  },
+  {
+    id: "lobstr",
+    name: "LOBSTR",
+    installUrl: "https://lobstr.co/",
+    description: "Stellar wallet — web and mobile",
+    isExtension: false,
+  },
+];
+
+/**
+ * Best-effort detection of whether a browser wallet extension is installed.
+ * Checks `window.freighter` (Freighter) and other known injection points.
+ * Returns the wallet id of the first detected extension, or null if none found.
+ *
+ * This is intentionally lightweight — the kit's own `openModal` does the
+ * authoritative detection at connect time. This pre-check lets the onboarding
+ * UI skip the "install a wallet" guidance when a wallet is already present.
+ */
+export function detectInstalledWallet(): string | null {
+  if (typeof window === "undefined") return null;
+  // Freighter injects `window.freighterApi` (or `window.freighter` on older versions).
+  const w = window as unknown as Record<string, unknown>;
+  const freighter = w.freighterApi ?? w.freighter;
+  if (freighter) return FREIGHTER_ID;
+  return null;
+}
+
+/**
+ * Returns true when a known Stellar wallet extension appears to be installed
+ * in the browser. Used by the onboarding flow to decide whether to show the
+ * "install a wallet" guidance or jump straight to "connect wallet".
+ */
+export function isWalletInstalled(): boolean {
+  return detectInstalledWallet() !== null;
+}
+
+/**
+ * The Stellar network the app is configured for, as a human-readable string
+ * suitable for display in the onboarding/network-mismatch warning.
+ */
+export function appNetworkName(): string {
+  return NETWORK;
+}
+
+/**
+ * The network name the connected wallet reports, or null if it can't be read.
+ * Used by the network-mismatch warning to tell the user which network their
+ * wallet is set to vs. which one the app expects.
+ */
+export async function walletNetworkName(): Promise<string | null> {
+  try {
+    const { networkPassphrase } = await getKit().getNetwork();
+    if (!networkPassphrase) return null;
+    // Map known passphrases back to human-readable names.
+    for (const [name, preset] of Object.entries(NETWORK_PRESETS)) {
+      if (preset.networkPassphrase === networkPassphrase) {
+        return name === "mainnet" ? "Mainnet (Public)" : name.charAt(0).toUpperCase() + name.slice(1);
+      }
+    }
+    return "Unknown network";
+  } catch {
+    return null;
+  }
 }
 
 /** Sign a transaction XDR with the connected wallet; returns the signed XDR. */

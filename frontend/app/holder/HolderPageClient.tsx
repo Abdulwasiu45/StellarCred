@@ -20,6 +20,8 @@ import {
   IconDownload,
 } from "@tabler/icons-react";
 import { WalletButton } from "@/components/WalletButton";
+import { WalletOnboarding } from "@/components/WalletOnboarding";
+import { CredentialExportPanel } from "@/components/holder/CredentialExportPanel";
 import { useWallet } from "@/lib/wallet-context";
 import { Badge } from "@/components/Badge";
 import { Check } from "@/components/Check";
@@ -491,6 +493,8 @@ function HolderInner() {
 
       <ConfigBanner />
 
+      <WalletOnboarding />
+
       {isPreview && (
         <div
           style={{
@@ -811,6 +815,8 @@ function HolderInner() {
           )}
         </div>
       )}
+
+      <CredentialExportPanel />
 
       {detailCred && (
         <CredentialDetailModal
