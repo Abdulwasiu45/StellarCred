@@ -2,13 +2,15 @@
 
 Complete reference for the `ProofRegistry` Error enum and its client-side mappings.
 
+> Per-entrypoint panic behaviour is documented in [PROOF_REGISTRY_API.md](PROOF_REGISTRY_API.md).
+
 ## Error Mapping
 
 | Code | Variant | Client Message |
 |------|---------|----------------|
-| 1 | AlreadyInitialized | Contract already initialized. |
-| 2 | NotInitialized | Contract not initialized. |
-| 3 | Unauthorized | Not authorised — wallet signature missing or wrong account. |
+| 1 | NotInitialized | Contract not initialized — a required admin, verifier, or issuer registry entry is missing. |
+| 2 | VerificationFailed | Verification failed — the ZK proof is invalid or was generated against the wrong circuit VK. |
+| 3 | NotAuthorized | Not authorised — wallet signature missing or wrong account. |
 | 4 | IssuerNotTrusted | Issuer not trusted — the issuer address isn't registered for this credential type. |
 | 5 | IssuerKeyMismatch | Issuer key mismatch — this credential was signed with a key that doesn't match what's registered on-chain. Re-issue the credential and try again. |
 | 6 | ProofNotFound | Proof not found — no proof exists for this credential type yet. |
@@ -18,6 +20,9 @@ Complete reference for the `ProofRegistry` Error enum and its client-side mappin
 | 10 | AggregateLayoutInvalid | Aggregate proof layout invalid — the number of credentials or public inputs don't match the circuit. |
 | 11 | SubmissionsPaused | Submissions paused — the protocol admin has temporarily halted new proof submissions. |
 | 12 | InvalidExpiry | Invalid expiry — the credential expiry is either in the past or too far in the future. |
+| 13 | RoleNotHeld | Role not held — the required role has no holder, or the caller is not the holder. |
+| 14 | RoleHolderMismatch | Role holder mismatch — `revoke_role` named an address that is not the current holder of the role. |
+| 15 | NoPendingAdmin | No pending admin — `accept_admin` was called without a pending `propose_admin` proposal. |
 
 ## Source
 

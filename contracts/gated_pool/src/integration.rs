@@ -20,7 +20,7 @@
 //!
 //! # Event mapping (documented sequence in the issue → actual events)
 //!
-//! The codebase's authoritative event catalog is `EVENTS.md`. The issue's
+//! The codebase's authoritative event catalog is `docs/EVENTS.md`. The issue's
 //! example sequence maps onto the real event names as follows:
 //!
 //! | Issue example name    | Actual event (topics)                                  |
@@ -44,27 +44,20 @@
 //! cross-contract emission order within each step of the lifecycle.
 
 use super::*;
-use credential_verifier::{CredentialVerifier, CredentialVerifierClient, EventVkSet};
-use issuer_registry::{
-    EventIssuerRegistered, EventIssuerRevoked, IssuerRegistry, IssuerRegistryClient,
-};
+use credential_verifier::EventVkSet;
+use issuer_registry::{EventIssuerRegistered, EventIssuerRevoked};
 use proof_registry::{
-    EventPaused, EventProofRevoked, EventProofSubmitted, EventUnpaused, ProofRegistry,
-    ProofRegistryClient,
+    EventPaused, EventProofRevoked, EventProofSubmitted, EventUnpaused,
+    RevocationReason,
 };
 use soroban_sdk::{
     testutils::{Address as _, Events as _, Ledger as _},
-    vec, Bytes, BytesN, Env, IntoVal, InvokeError,
+    vec, Env, IntoVal, InvokeError,
 };
+use test_support::{Contracts, GatedPoolClient, KYC};
 
 use credential_verifier::Error as VerifierError;
 use proof_registry::Error as ProofRegistryError;
-
-// Real UltraHonk artifacts for the `kyc` credential circuit, shared by every
-// scenario in this module.
-const VK: &[u8] = include_bytes!("../../../fixtures/kyc/vk");
-const PROOF: &[u8] = include_bytes!("../../../fixtures/kyc/proof");
-const PUBLIC_INPUTS: &[u8] = include_bytes!("../../../fixtures/kyc/public_inputs");
 
 // Deterministic timeline for the whole module: the ledger clock starts at T0
 // and every claim expires one week later. `validate_expiry` only requires
@@ -75,61 +68,26 @@ const EXPIRY: u64 = T0 + 7 * DAY;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-/// The secp256k1 issuer pubkey (x || y) embedded in the kyc fixture's public
-/// inputs: one byte per 32-byte field, taken from the low byte of fields 1..65
-/// — the same layout ProofRegistry's `public_inputs_match_pubkey` checks.
-fn demo_pubkey(env: &Env) -> BytesN<64> {
-    let mut arr = [0u8; 64];
-    for i in 0..64usize {
-        arr[i] = PUBLIC_INPUTS[(1 + i) * 32 + 31];
-    }
-    BytesN::from_array(env, &arr)
-}
-
-/// All four contracts, deployed and cross-wired exactly as in production:
-/// ProofRegistry is constructed with the verifier + issuer registry addresses,
-/// and GatedPool is constructed with the ProofRegistry address.
+/// The deployed stack plus a GatedPool, as deployed and cross-wired in
+/// production. The three-registry side of the world comes from the shared
+/// harness; only the pool (and the issuer used by each scenario) is local.
 struct World {
-    admin: Address,
+    c: Contracts,
     issuer: Address,
-    issuer_registry: IssuerRegistryClient<'static>,
-    verifier: CredentialVerifierClient<'static>,
-    registry: ProofRegistryClient<'static>,
     pool: GatedPoolClient<'static>,
 }
 
 fn deploy_world(env: &Env) -> World {
     env.ledger().with_mut(|li| li.timestamp = T0);
 
-    let admin = Address::generate(env);
-
-    // Root of trust: which issuers may attest which credential types.
-    let ir_id = env.register(IssuerRegistry, (admin.clone(),));
-    let issuer_registry = IssuerRegistryClient::new(env, &ir_id);
-
-    // Stateless crypto gateway: UltraHonk verification keys per credential type.
-    let cv_id = env.register(CredentialVerifier, (admin.clone(),));
-    let verifier = CredentialVerifierClient::new(env, &cv_id);
-
-    // Cache of verified claims, wired to the two contracts above.
-    let pr_id = env.register(
-        ProofRegistry,
-        (admin.clone(), cv_id.clone(), ir_id.clone()),
-    );
-    let registry = ProofRegistryClient::new(env, &pr_id);
-
-    // Gated DeFi pool wired to the claim cache.
-    let gate_type = symbol_short!("kyc");
-    let min_threshold: Option<u64> = None;
-    let pool_id = env.register(GatedPool, (pr_id.clone(), gate_type, min_threshold));
-    let pool = GatedPoolClient::new(env, &pool_id);
+    // IssuerRegistry + CredentialVerifier + ProofRegistry, cross-wired.
+    let c = Contracts::deploy(env);
+    // Gated pool wired to the claim cache.
+    let pool = c.deploy_pool(env, "kyc", None);
 
     World {
-        admin,
+        c,
         issuer: Address::generate(env),
-        issuer_registry,
-        verifier,
-        registry,
         pool,
     }
 }
@@ -173,30 +131,30 @@ fn four_contract_lifecycle_end_to_end() {
     env.mock_all_auths();
     let w = deploy_world(&env);
     let holder = Address::generate(&env);
-    let pubkey = demo_pubkey(&env);
+    let pubkey = KYC.issuer_pubkey(&env);
 
     // 1–2. Deploy all four contracts and verify the address wiring/trust
     // configuration matches the constructor arguments.
-    assert_eq!(w.pool.registry_address(), w.registry.address);
-    assert_eq!(w.registry.verifier_address(), w.verifier.address);
+    assert_eq!(w.pool.registry_address(), w.c.registry.address);
+    assert_eq!(w.c.registry.verifier_address(), w.c.verifier.address);
     assert_eq!(
-        w.registry.issuer_registry_address(),
-        w.issuer_registry.address
+        w.c.registry.issuer_registry_address(),
+        w.c.issuers.address
     );
     assert_eq!(w.pool.gate(), (symbol_short!("kyc"), None));
-    assert_eq!(w.registry.version(), 1_000_000);
+    assert_eq!(w.c.registry.version(), 1_001_000);
 
     // 3. Register the issuer in IssuerRegistry → IssuerRegistered.
-    w.issuer_registry
+    w.c.issuers
         .register_issuer(&w.issuer, &pubkey, &vec![&env, symbol_short!("kyc")]);
     // Event assertion must directly follow the emitting call: any top-level
     // invocation (even a read) clears the event buffer observed by `all()`.
     assert_eq!(
-        env.events().all().filter_by_contract(&w.issuer_registry.address),
+        env.events().all().filter_by_contract(&w.c.issuers.address),
         vec![
             &env,
             (
-                w.issuer_registry.address.clone(),
+                w.c.issuers.address.clone(),
                 (symbol_short!("iss_reg"), symbol_short!("register")).into_val(&env),
                 EventIssuerRegistered {
                     issuer: w.issuer.clone(),
@@ -207,19 +165,19 @@ fn four_contract_lifecycle_end_to_end() {
         ],
     );
     assert!(w
-        .issuer_registry
+        .c.issuers
         .is_valid_issuer(&w.issuer, &symbol_short!("kyc")));
 
     // 4. Set the verification key in CredentialVerifier → VerificationKeySet.
-    w.verifier
-        .set_vk(&symbol_short!("kyc"), &1u32, &Bytes::from_slice(&env, VK));
+    w.c.verifier
+        .set_vk(&symbol_short!("kyc"), &1u32, &KYC.vk_bytes(&env));
     // Event assertion directly after the emitting call (see note above).
     assert_eq!(
-        env.events().all().filter_by_contract(&w.verifier.address),
+        env.events().all().filter_by_contract(&w.c.verifier.address),
         vec![
             &env,
             (
-                w.verifier.address.clone(),
+                w.c.verifier.address.clone(),
                 (
                     symbol_short!("cred_ver"),
                     symbol_short!("vk_set"),
@@ -227,33 +185,25 @@ fn four_contract_lifecycle_end_to_end() {
                 )
                     .into_val(&env),
                 EventVkSet {
-                    admin: w.admin.clone(),
+                    admin: w.c.admin.clone(),
                     version: 1,
-                    contract_version: w.verifier.version(),
+                    contract_version: w.c.verifier.version(),
                 }
                 .into_val(&env),
             ),
         ],
     );
-    assert_eq!(w.verifier.get_latest_version(&symbol_short!("kyc")), 1);
+    assert_eq!(w.c.verifier.get_latest_version(&symbol_short!("kyc")), 1);
 
     // 5. Submit the valid UltraHonk proof through ProofRegistry → ProofSubmitted.
-    w.registry.submit_proof(
-        &holder,
-        &w.issuer,
-        &symbol_short!("kyc"),
-        &Bytes::from_slice(&env, PROOF),
-        &Bytes::from_slice(&env, PUBLIC_INPUTS),
-        &None,
-        &EXPIRY,
-    );
+    w.c.submit(&env, &holder, &w.issuer, &KYC, EXPIRY);
     // Event assertion directly after the emitting call (see note above).
     assert_eq!(
-        env.events().all().filter_by_contract(&w.registry.address),
+        env.events().all().filter_by_contract(&w.c.registry.address),
         vec![
             &env,
             (
-                w.registry.address.clone(),
+                w.c.registry.address.clone(),
                 (
                     symbol_short!("proof_reg"),
                     symbol_short!("submitted"),
@@ -273,17 +223,17 @@ fn four_contract_lifecycle_end_to_end() {
 
     // 6. The proof created the expected claim (no event; observed on-chain).
     assert_eq!(
-        w.registry.is_verified(&holder, &symbol_short!("kyc"), &None),
+        w.c.registry.is_verified(&holder, &symbol_short!("kyc"), &None),
         (true, T0, EXPIRY),
     );
     let record = w
-        .registry
+        .c.registry
         .get_record(&holder, &symbol_short!("kyc"))
         .expect("claim should exist after submit_proof");
     assert!(!record.revoked);
     assert_eq!(record.issuer, Some(w.issuer.clone()));
     assert_eq!(record.expiry, EXPIRY);
-    assert_eq!(w.registry.claim_expiry(&holder, &symbol_short!("kyc")), EXPIRY);
+    assert_eq!(w.c.registry.claim_expiry(&holder, &symbol_short!("kyc")), EXPIRY);
 
     // 7. GatedPool accepts a deposit backed by the claim → DepositAccepted.
     w.pool.deposit(&holder, &500);
@@ -308,14 +258,14 @@ fn four_contract_lifecycle_end_to_end() {
 
     // 8. Revoke the claim (the issuing issuer, through ProofRegistry)
     //    → ClaimRevoked.
-    w.registry.revoke(&w.issuer, &holder, &symbol_short!("kyc"));
+    w.c.registry.revoke(&w.issuer, &holder, &symbol_short!("kyc"), &None);
     // Event assertion directly after the emitting call (see note above).
     assert_eq!(
-        env.events().all().filter_by_contract(&w.registry.address),
+        env.events().all().filter_by_contract(&w.c.registry.address),
         vec![
             &env,
             (
-                w.registry.address.clone(),
+                w.c.registry.address.clone(),
                 (
                     symbol_short!("proof_reg"),
                     symbol_short!("revoked"),
@@ -326,17 +276,18 @@ fn four_contract_lifecycle_end_to_end() {
                     holder: holder.clone(),
                     issuer: w.issuer.clone(),
                     revoked_at: T0,
+                    reason: RevocationReason::Other,
                 }
                 .into_val(&env),
             ),
         ],
     );
     assert!(!w
-        .registry
+        .c.registry
         .is_verified(&holder, &symbol_short!("kyc"), &None)
         .0);
     assert!(w
-        .registry
+        .c.registry
         .get_record(&holder, &symbol_short!("kyc"))
         .expect("revocation marks the record, it does not delete it")
         .revoked);
@@ -361,21 +312,13 @@ fn four_contract_lifecycle_end_to_end() {
     // 10–11. A second holder proves and deposits, then the claim expires —
     // the gate remains closed after expiration.
     let holder_b = Address::generate(&env);
-    w.registry.submit_proof(
-        &holder_b,
-        &w.issuer,
-        &symbol_short!("kyc"),
-        &Bytes::from_slice(&env, PROOF),
-        &Bytes::from_slice(&env, PUBLIC_INPUTS),
-        &None,
-        &EXPIRY,
-    );
+    w.c.submit(&env, &holder_b, &w.issuer, &KYC, EXPIRY);
     w.pool.deposit(&holder_b, &50);
 
     env.ledger()
         .with_mut(|li| li.timestamp = EXPIRY + 1);
     assert!(!w
-        .registry
+        .c.registry
         .is_verified(&holder_b, &symbol_short!("kyc"), &None)
         .0);
     let res = w.pool.try_deposit(&holder_b, &10);
@@ -405,21 +348,21 @@ fn untrusted_issuer_cannot_submit_through_proof_registry() {
     // The VK is set so the ONLY missing piece is issuer trust: the rejection
     // below is provably the IssuerRegistry trust check, not missing crypto
     // material or a bad proof.
-    w.verifier
-        .set_vk(&symbol_short!("kyc"), &1u32, &Bytes::from_slice(&env, VK));
+    w.c.verifier
+        .set_vk(&symbol_short!("kyc"), &1u32, &KYC.vk_bytes(&env));
     let holder = Address::generate(&env);
 
     // Sanity: an unregistered issuer is not trusted for kyc (root of trust).
     assert!(!w
-        .issuer_registry
+        .c.issuers
         .is_valid_issuer(&w.issuer, &symbol_short!("kyc")));
 
-    let res = w.registry.try_submit_proof(
+    let res = w.c.registry.try_submit_proof(
         &holder,
         &w.issuer,
         &symbol_short!("kyc"),
-        &Bytes::from_slice(&env, PROOF),
-        &Bytes::from_slice(&env, PUBLIC_INPUTS),
+        &KYC.proof_bytes(&env),
+        &KYC.public_inputs_bytes(&env),
         &None,
         &EXPIRY,
     );
@@ -430,11 +373,11 @@ fn untrusted_issuer_cannot_submit_through_proof_registry() {
 
     // No claim was cached, nothing was emitted, and the gate stays closed.
     assert_eq!(
-        env.events().all().filter_by_contract(&w.registry.address),
+        env.events().all().filter_by_contract(&w.c.registry.address),
         vec![&env],
     );
     assert!(w
-        .registry
+        .c.registry
         .get_record(&holder, &symbol_short!("kyc"))
         .is_none());
     let res = w.pool.try_deposit(&holder, &100);
@@ -455,19 +398,19 @@ fn unregistered_vk_version_propagates_verifier_error() {
     let env = Env::default();
     env.mock_all_auths();
     let w = deploy_world(&env);
-    w.issuer_registry
-        .register_issuer(&w.issuer, &demo_pubkey(&env), &vec![&env, symbol_short!("kyc")]);
-    w.verifier
-        .set_vk(&symbol_short!("kyc"), &1u32, &Bytes::from_slice(&env, VK));
+    w.c.issuers
+        .register_issuer(&w.issuer, &KYC.issuer_pubkey(&env), &vec![&env, symbol_short!("kyc")]);
+    w.c.verifier
+        .set_vk(&symbol_short!("kyc"), &1u32, &KYC.vk_bytes(&env));
     let holder = Address::generate(&env);
 
     // Version 7 was never registered for kyc.
-    let res = w.registry.try_submit_proof(
+    let res = w.c.registry.try_submit_proof(
         &holder,
         &w.issuer,
         &symbol_short!("kyc"),
-        &Bytes::from_slice(&env, PROOF),
-        &Bytes::from_slice(&env, PUBLIC_INPUTS),
+        &KYC.proof_bytes(&env),
+        &KYC.public_inputs_bytes(&env),
         &Some(7u32),
         &EXPIRY,
     );
@@ -479,23 +422,15 @@ fn unregistered_vk_version_propagates_verifier_error() {
 
     // No claim was cached for the failed submission.
     assert!(w
-        .registry
+        .c.registry
         .get_record(&holder, &symbol_short!("kyc"))
         .is_none());
 
     // Differentiator: the identical proof at the latest version is accepted,
     // so the rejection above is attributable to the version alone.
-    w.registry.submit_proof(
-        &holder,
-        &w.issuer,
-        &symbol_short!("kyc"),
-        &Bytes::from_slice(&env, PROOF),
-        &Bytes::from_slice(&env, PUBLIC_INPUTS),
-        &None,
-        &EXPIRY,
-    );
+    w.c.submit(&env, &holder, &w.issuer, &KYC, EXPIRY);
     assert!(w
-        .registry
+        .c.registry
         .is_verified(&holder, &symbol_short!("kyc"), &None)
         .0);
 }
@@ -513,23 +448,23 @@ fn deprecated_vk_version_propagates_verifier_error() {
     let env = Env::default();
     env.mock_all_auths();
     let w = deploy_world(&env);
-    w.issuer_registry
-        .register_issuer(&w.issuer, &demo_pubkey(&env), &vec![&env, symbol_short!("kyc")]);
-    let verifier = &w.verifier;
-    verifier.set_vk(&symbol_short!("kyc"), &1u32, &Bytes::from_slice(&env, VK));
+    w.c.issuers
+        .register_issuer(&w.issuer, &KYC.issuer_pubkey(&env), &vec![&env, symbol_short!("kyc")]);
+    let verifier = &w.c.verifier;
+    verifier.set_vk(&symbol_short!("kyc"), &1u32, &KYC.vk_bytes(&env));
     // A second circuit version (same VK bytes for test purposes), then
     // deprecated by the admin: new submissions against it are rejected.
-    verifier.set_vk(&symbol_short!("kyc"), &2u32, &Bytes::from_slice(&env, VK));
+    verifier.set_vk(&symbol_short!("kyc"), &2u32, &KYC.vk_bytes(&env));
     verifier.deprecate_version(&symbol_short!("kyc"), &2u32);
     assert_eq!(verifier.get_latest_version(&symbol_short!("kyc")), 2);
 
     let holder = Address::generate(&env);
-    let res = w.registry.try_submit_proof(
+    let res = w.c.registry.try_submit_proof(
         &holder,
         &w.issuer,
         &symbol_short!("kyc"),
-        &Bytes::from_slice(&env, PROOF),
-        &Bytes::from_slice(&env, PUBLIC_INPUTS),
+        &KYC.proof_bytes(&env),
+        &KYC.public_inputs_bytes(&env),
         &Some(2u32),
         &EXPIRY,
     );
@@ -539,7 +474,7 @@ fn deprecated_vk_version_propagates_verifier_error() {
         "expected CredentialVerifier::VersionDeprecated to propagate through ProofRegistry"
     );
     assert!(w
-        .registry
+        .c.registry
         .get_record(&holder, &symbol_short!("kyc"))
         .is_none());
 
@@ -547,17 +482,17 @@ fn deprecated_vk_version_propagates_verifier_error() {
     // the still-live version 1 (the deprecated flag is per-version, and latest
     // pointer 2 is only consulted for `None`).
     let holder_b = Address::generate(&env);
-    w.registry.submit_proof(
+    w.c.registry.submit_proof(
         &holder_b,
         &w.issuer,
         &symbol_short!("kyc"),
-        &Bytes::from_slice(&env, PROOF),
-        &Bytes::from_slice(&env, PUBLIC_INPUTS),
+        &KYC.proof_bytes(&env),
+        &KYC.public_inputs_bytes(&env),
         &Some(1u32),
         &EXPIRY,
     );
     assert!(w
-        .registry
+        .c.registry
         .is_verified(&holder_b, &symbol_short!("kyc"), &None)
         .0);
 
@@ -575,22 +510,22 @@ fn paused_registry_rejects_submissions_until_unpause() {
     let env = Env::default();
     env.mock_all_auths();
     let w = deploy_world(&env);
-    w.issuer_registry
-        .register_issuer(&w.issuer, &demo_pubkey(&env), &vec![&env, symbol_short!("kyc")]);
-    w.verifier
-        .set_vk(&symbol_short!("kyc"), &1u32, &Bytes::from_slice(&env, VK));
+    w.c.issuers
+        .register_issuer(&w.issuer, &KYC.issuer_pubkey(&env), &vec![&env, symbol_short!("kyc")]);
+    w.c.verifier
+        .set_vk(&symbol_short!("kyc"), &1u32, &KYC.vk_bytes(&env));
     let holder = Address::generate(&env);
 
-    w.registry.pause();
+    w.c.registry.pause();
     assert_eq!(
-        env.events().all().filter_by_contract(&w.registry.address),
+        env.events().all().filter_by_contract(&w.c.registry.address),
         vec![
             &env,
             (
-                w.registry.address.clone(),
+                w.c.registry.address.clone(),
                 (symbol_short!("proof_reg"), symbol_short!("paused")).into_val(&env),
                 EventPaused {
-                    admin: w.admin.clone(),
+                    admin: w.c.admin.clone(),
                     paused_at: T0,
                 }
                 .into_val(&env),
@@ -598,12 +533,12 @@ fn paused_registry_rejects_submissions_until_unpause() {
         ],
     );
 
-    let res = w.registry.try_submit_proof(
+    let res = w.c.registry.try_submit_proof(
         &holder,
         &w.issuer,
         &symbol_short!("kyc"),
-        &Bytes::from_slice(&env, PROOF),
-        &Bytes::from_slice(&env, PUBLIC_INPUTS),
+        &KYC.proof_bytes(&env),
+        &KYC.public_inputs_bytes(&env),
         &None,
         &EXPIRY,
     );
@@ -612,20 +547,20 @@ fn paused_registry_rejects_submissions_until_unpause() {
         ProofRegistryError::SubmissionsPaused as u32
     );
     assert!(w
-        .registry
+        .c.registry
         .get_record(&holder, &symbol_short!("kyc"))
         .is_none());
 
-    w.registry.unpause();
+    w.c.registry.unpause();
     assert_eq!(
-        env.events().all().filter_by_contract(&w.registry.address),
+        env.events().all().filter_by_contract(&w.c.registry.address),
         vec![
             &env,
             (
-                w.registry.address.clone(),
+                w.c.registry.address.clone(),
                 (symbol_short!("proof_reg"), symbol_short!("unpaused")).into_val(&env),
                 EventUnpaused {
-                    admin: w.admin.clone(),
+                    admin: w.c.admin.clone(),
                     unpaused_at: T0,
                 }
                 .into_val(&env),
@@ -634,17 +569,9 @@ fn paused_registry_rejects_submissions_until_unpause() {
     );
 
     // The full cross-contract flow works again after unpausing.
-    w.registry.submit_proof(
-        &holder,
-        &w.issuer,
-        &symbol_short!("kyc"),
-        &Bytes::from_slice(&env, PROOF),
-        &Bytes::from_slice(&env, PUBLIC_INPUTS),
-        &None,
-        &EXPIRY,
-    );
+    w.c.submit(&env, &holder, &w.issuer, &KYC, EXPIRY);
     assert!(w
-        .registry
+        .c.registry
         .is_verified(&holder, &symbol_short!("kyc"), &None)
         .0);
     w.pool.deposit(&holder, &25);
@@ -661,26 +588,26 @@ fn issuer_revoked_midflight_rejects_submission() {
     let env = Env::default();
     env.mock_all_auths();
     let w = deploy_world(&env);
-    w.issuer_registry
-        .register_issuer(&w.issuer, &demo_pubkey(&env), &vec![&env, symbol_short!("kyc")]);
-    w.verifier
-        .set_vk(&symbol_short!("kyc"), &1u32, &Bytes::from_slice(&env, VK));
+    w.c.issuers
+        .register_issuer(&w.issuer, &KYC.issuer_pubkey(&env), &vec![&env, symbol_short!("kyc")]);
+    w.c.verifier
+        .set_vk(&symbol_short!("kyc"), &1u32, &KYC.vk_bytes(&env));
 
     // The issuer is trusted right up until the admin revokes it.
     assert!(w
-        .issuer_registry
+        .c.issuers
         .is_valid_issuer(&w.issuer, &symbol_short!("kyc")));
-    w.issuer_registry.revoke_issuer(&w.issuer);
+    w.c.issuers.revoke_issuer(&w.issuer);
 
     // Revocation is audited on the IssuerRegistry itself. The event assertion
     // must directly follow the emitting call: any top-level invocation (even a
     // read) clears the event buffer observed by `all()`.
     assert_eq!(
-        env.events().all().filter_by_contract(&w.issuer_registry.address),
+        env.events().all().filter_by_contract(&w.c.issuers.address),
         vec![
             &env,
             (
-                w.issuer_registry.address.clone(),
+                w.c.issuers.address.clone(),
                 (symbol_short!("iss_reg"), symbol_short!("revoked")).into_val(&env),
                 EventIssuerRevoked {
                     issuer: w.issuer.clone(),
@@ -690,17 +617,17 @@ fn issuer_revoked_midflight_rejects_submission() {
         ],
     );
     assert!(!w
-        .issuer_registry
+        .c.issuers
         .is_valid_issuer(&w.issuer, &symbol_short!("kyc")));
 
     // The mid-flight submission now fails the cross-contract trust check.
     let holder = Address::generate(&env);
-    let res = w.registry.try_submit_proof(
+    let res = w.c.registry.try_submit_proof(
         &holder,
         &w.issuer,
         &symbol_short!("kyc"),
-        &Bytes::from_slice(&env, PROOF),
-        &Bytes::from_slice(&env, PUBLIC_INPUTS),
+        &KYC.proof_bytes(&env),
+        &KYC.public_inputs_bytes(&env),
         &None,
         &EXPIRY,
     );
@@ -709,11 +636,11 @@ fn issuer_revoked_midflight_rejects_submission() {
         ProofRegistryError::IssuerNotTrusted as u32
     );
     assert_eq!(
-        env.events().all().filter_by_contract(&w.registry.address),
+        env.events().all().filter_by_contract(&w.c.registry.address),
         vec![&env],
     );
     assert!(w
-        .registry
+        .c.registry
         .get_record(&holder, &symbol_short!("kyc"))
         .is_none());
 

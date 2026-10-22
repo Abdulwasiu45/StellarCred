@@ -3,7 +3,7 @@
  * into the local DB.
  *
  * All emitted event topics and payload schemas are documented authoritatively in
- * `EVENTS.md` (and `docs/EVENTS.md`).
+ * `docs/EVENTS.md`.
  *
  * ProofRegistry event topics follow the tuple convention:
  *   Submitted: ("proof_reg", "submitted", <credential_type>) -> EventProofSubmitted
@@ -53,6 +53,7 @@
 import { Horizon } from "@stellar/stellar-sdk";
 import type { Config } from "./config";
 import type { Db } from "./db";
+import { createWebhookDispatcher } from "./webhooks";
 
 // ── Retry configuration ───────────────────────────────────────────────────
 
@@ -246,6 +247,13 @@ function isTransientError(err: unknown): boolean {
  * @param retries   Remaining retries (internal, do not pass)
  * @param attempt   Current attempt number (1-based, internal)
  */
+// Lint suppression (#855): dead since the tick path was rewritten around the
+// plain `fetchEvents` helper below, which has no backoff. Keeping it because it
+// is the only bounded-retry implementation in the service and `isTransientError`
+// above still documents that Horizon status codes are handled here. Wiring the
+// tick path onto it — or deleting it — changes ingestion behaviour, so that is a
+// call for the ingester owner, not a linting PR.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function fetchEventsWithRetry(
   url: string,
   signal: AbortSignal,
@@ -319,6 +327,10 @@ type ParsedEvent =
       kind: "revoked";
       holder: string;
       credentialType: string;
+      issuer: string;
+      revokedAt: number;
+      reasonCode: "issuer_revoked" | "holder_revoked";
+      reason: string;
     }
   | { kind: "unknown" };
 
@@ -327,23 +339,18 @@ type ParsedEvent =
  *
  * ProofRegistry event topology
  * ─────────────────────────────
- * Verified:
- *   topics[0] = ScvSymbol "proof"
- *   topics[1] = ScvSymbol "verified"
- *   value     = ScvU64 expiry
+ * Submitted/verified:
+ *   topics[0] = ScvSymbol "proof_reg"
+ *   topics[1] = ScvSymbol "submitted"
+ *   topics[2] = credential type
+ *   value     = EventProofSubmitted { holder, issuer, verified_at, expiry }
  *
- *   The holder and credential_type are NOT in the topics; they are implicit in
- *   the storage key.  Horizon does, however, surface the transaction's
- *   source_account which is the holder (they must sign submit_proof).
- *
- * Revoked (issuer-initiated, from revoke()):
- *   topics[0] = ScvSymbol "revoked"
- *   value     = ScvVec [holder, credential_type, issuer, timestamp]
- *
- * Revoked (holder self-revoke, revoke_proof()):
- *   No event is emitted by the contract for self-revoke — holder just removes
- *   the storage key.  We therefore won't see a chain event; claims will expire
- *   naturally.
+ * Revoked:
+ *   topics = ("proof_reg", "revoked", credential_type)
+ *   value  = EventProofRevoked { holder, issuer, revoked_at }
+ * Holder self-revocation:
+ *   topics = ("proof_reg", "self_rev", credential_type)
+ *   value  = EventHolderRevoked { holder, revoked_at }
  */
 function parseEvent(
   ev: HorizonContractEvent,
@@ -358,35 +365,123 @@ function parseEvent(
       ? parseInt(ev.ledger, 10)
       : ev.ledger;
 
-  // verified event
-  if (topics[0] === "proof" && topics[1] === "verified") {
-    const holder = ev.source_account ?? "";
-    // credential_type is the 3rd topic (index 2) when emitted — but the
-    // contract's current publish call only emits 2 topics + value.
-    // We extract credential_type from the 3rd topic if present, else "unknown".
-    const credentialType =
-      typeof topics[2] === "string" ? topics[2] : "unknown";
-    const expiry = typeof value === "number" ? value : 0;
+  const structField = (): Record<string, unknown> | undefined => {
+    if (Array.isArray(value)) {
+      const result: Record<string, unknown> = {};
+      for (let i = 0; i + 1 < value.length; i += 2) {
+        if (typeof value[i] === "string") result[value[i] as string] = value[i + 1];
+      }
+      return result;
+    }
+    if (value && typeof value === "object") return value as Record<string, unknown>;
+    return undefined;
+  };
+
+  const eventData = structField();
+  const credentialType = typeof topics[2] === "string" ? topics[2] : "";
+  const numericField = (name: string, fallback: number) => {
+    const raw = eventData?.[name];
+    const parsed = typeof raw === "number" || typeof raw === "string" ? Number(raw) : NaN;
+    return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : fallback;
+  };
+  const addressField = (name: string): string => {
+    const raw = eventData?.[name];
+    if (typeof raw === "string") return raw;
+    if (raw && typeof raw === "object" && "address" in raw) {
+      const address = (raw as { address?: unknown }).address;
+      if (typeof address === "string") return address;
+      if (address && typeof address === "object" && "value" in address) {
+        return String((address as { value: unknown }).value);
+      }
+    }
+    return "";
+  };
+
+  if (topics[0] === "proof_reg" && topics[1] === "submitted" && credentialType) {
+    const holder = addressField("holder") || ev.source_account || "";
+    const expiry = numericField("expiry", 0);
 
     return {
       kind: "verified",
       holder,
       credentialType,
-      issuer: "",
+      issuer: addressField("issuer"),
       expiry,
       ledgerSequence,
-      verifiedAt: Math.floor(
-        new Date(ev.ledger_closed_at).getTime() / 1000
+      verifiedAt: numericField(
+        "verified_at",
+        Math.floor(new Date(ev.ledger_closed_at).getTime() / 1000),
       ),
     };
   }
 
-  // revoked event
-  if (topics[0] === "revoked") {
-    if (Array.isArray(value) && value.length >= 2) {
-      const holder = String(value[0]);
-      const credentialType = String(value[1]);
-      return { kind: "revoked", holder, credentialType };
+  // Preserve compatibility with older indexer fixtures/event streams.
+  if (topics[0] === "proof" && topics[1] === "verified") {
+    return {
+      kind: "verified",
+      holder: ev.source_account ?? "",
+      credentialType: typeof topics[2] === "string" ? topics[2] : "unknown",
+      issuer: "",
+      expiry: typeof value === "number" ? value : 0,
+      ledgerSequence,
+      verifiedAt: Math.floor(new Date(ev.ledger_closed_at).getTime() / 1000),
+    };
+  }
+
+  if (topics[0] === "proof_reg" && topics[1] === "revoked" && credentialType) {
+    const holder = addressField("holder");
+    const issuer = addressField("issuer");
+    if (holder && issuer) {
+      const reasonRaw = eventData?.["reason"];
+      const reasonNum = typeof reasonRaw === "number" ? reasonRaw : Number(reasonRaw);
+      const reasonMap: Record<number, string> = {
+        0: "expired",
+        1: "superseded",
+        2: "fraud",
+        3: "user_request",
+        4: "other",
+      };
+      const reason = reasonMap[reasonNum] || "other";
+      return {
+        kind: "revoked",
+        holder,
+        credentialType,
+        issuer,
+        revokedAt: numericField(
+          "revoked_at",
+          Math.floor(new Date(ev.ledger_closed_at).getTime() / 1000),
+        ),
+        reasonCode: "issuer_revoked",
+        reason,
+      };
+    }
+  }
+
+  if (topics[0] === "proof_reg" && topics[1] === "self_rev" && credentialType) {
+    const holder = addressField("holder");
+    if (holder) {
+      const reasonRaw = eventData?.["reason"];
+      const reasonNum = typeof reasonRaw === "number" ? reasonRaw : Number(reasonRaw);
+      const reasonMap: Record<number, string> = {
+        0: "expired",
+        1: "superseded",
+        2: "fraud",
+        3: "user_request",
+        4: "other",
+      };
+      const reason = reasonMap[reasonNum] || "other";
+      return {
+        kind: "revoked",
+        holder,
+        credentialType,
+        issuer: "",
+        revokedAt: numericField(
+          "revoked_at",
+          Math.floor(new Date(ev.ledger_closed_at).getTime() / 1000),
+        ),
+        reasonCode: "holder_revoked",
+        reason,
+      };
     }
   }
 
@@ -416,6 +511,12 @@ export interface Ingester {
 }
 
 export function createIngester(config: Config, db: Db): Ingester {
+  // Lint suppression (#855): the tick path builds Horizon REST URLs and calls
+  // fetch() directly, so this SDK client instance is never read. It is also the
+  // only consumer of the `Horizon` import above, which is why removing it would
+  // just move the error. Unused as of today, not wrong — leaving the decision to
+  // whoever next touches ingestion.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const server = new Horizon.Server(config.horizonUrl, {
     allowHttp: config.horizonUrl.startsWith("http://"),
   });
@@ -424,6 +525,19 @@ export function createIngester(config: Config, db: Db): Ingester {
   let timer: ReturnType<typeof setTimeout> | null = null;
   let inFlightTick: Promise<number> | null = null;
   const health = freshHealth();
+  const webhookDispatcher = config.webhookSigningSecret
+    ? createWebhookDispatcher(db, config.webhookSigningSecret)
+    : undefined;
+
+  async function processWebhookQueue(): Promise<void> {
+    if (!webhookDispatcher) return;
+    try {
+      await webhookDispatcher.enqueueExpiredClaims();
+      await webhookDispatcher.dispatchPending();
+    } catch (error) {
+      console.error("[indexer] webhook delivery cycle failed:", error);
+    }
+  }
 
   // ── Prometheus metrics state ──────────────────────────────────────────
   const startTime = Date.now();
@@ -437,6 +551,12 @@ export function createIngester(config: Config, db: Db): Ingester {
   let cachedHeadTime = 0;
   const HEAD_CACHE_MS = 30_000;
 
+  // Lint suppression (#855): the tick reads the head ledger from `getLedgerHead`
+  // below instead, so this 30s-cached variant is never called. It is the only
+  // writer of `cachedHeadLedger` / `cachedHeadTime` / `HEAD_CACHE_MS` above, so
+  // deleting it would strand that state; picking one head-ledger path is an
+  // ingestion change, not a linting one.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async function fetchHeadLedger(): Promise<number> {
     const now = Date.now();
     if (cachedHeadLedger > 0 && now - cachedHeadTime < HEAD_CACHE_MS) {
@@ -533,10 +653,28 @@ export function createIngester(config: Config, db: Db): Ingester {
           ledger_sequence: parsed.ledgerSequence,
           threshold: null,
           revoked: 0,
+          reason_code: "other",
         });
         processed++;
       } else if (parsed.kind === "revoked") {
-        await db.revokeClaim(parsed.holder, parsed.credentialType);
+        const claim = await db.claimByWalletAndType(
+          parsed.holder,
+          parsed.credentialType,
+        );
+        await db.revokeClaim(parsed.holder, parsed.credentialType, parsed.reason);
+        if (webhookDispatcher) {
+          await db.enqueueWebhookEvent({
+            event_id: `${parsed.reasonCode}:${ev.transaction_hash ?? ev.paging_token}:${parsed.holder}:${parsed.credentialType}`,
+            type: "revoked",
+            wallet: parsed.holder,
+            credential_type: parsed.credentialType,
+            expiry: claim?.expiry ?? 0,
+            ledger_sequence:
+              typeof ev.ledger === "string" ? Number(ev.ledger) : ev.ledger,
+            occurred_at: parsed.revokedAt,
+            reason_code: parsed.reasonCode,
+          });
+        }
         processed++;
       }
     }
@@ -550,6 +688,7 @@ export function createIngester(config: Config, db: Db): Ingester {
 
   async function tick(): Promise<number> {
     const tickStart = Date.now();
+    await processWebhookQueue();
 
     const lastLedger = await db.getLastLedger();
 
@@ -636,8 +775,15 @@ export function createIngester(config: Config, db: Db): Ingester {
     if (maxLedger > lastLedger) {
       await db.setLastLedger(maxLedger);
     }
+    await processWebhookQueue();
 
     const tickEnd = Date.now();
+    // Lint suppression (#855): the exported `dbWriteLatencySeconds` metric is
+    // reported from `lastTickDurationSec` in getMetrics(), not from this
+    // tickStart/tickEnd pair, so this measurement is currently a no-op. Removing
+    // it would also strand both timestamps; deciding which duration the metric
+    // should carry is a metrics change, not a linting one.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const dbWriteLatencySec = (tickEnd - tickStart) / 1000;
 
     // Update health on success.
@@ -739,3 +885,4 @@ export function createIngester(config: Config, db: Db): Ingester {
     },
   };
 }
+

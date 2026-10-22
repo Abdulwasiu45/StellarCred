@@ -132,7 +132,7 @@ describe("POST /api/issue/batch", () => {
     expect(data.results[3].holder).toBe(HOLDER_3);
   });
 
-  it("supports idempotency replay with Idempotency-Key header", async () => {
+  it("returns a redacted marker for an idempotent replay", async () => {
     const key = "test-batch-key-123456789";
     const payload = [
       {
@@ -144,11 +144,14 @@ describe("POST /api/issue/batch", () => {
     const res1 = await POST(postRequest(payload, { "Idempotency-Key": key }));
     expect(res1.status).toBe(200);
     const data1 = await res1.json();
+    expect(data1.results[0].credentials).toHaveLength(1);
 
     const res2 = await POST(postRequest(payload, { "Idempotency-Key": key }));
-    expect(res2.status).toBe(200);
+    expect(res2.status).toBe(409);
     expect(res2.headers.get("X-Idempotent")).toBe("true");
-    const data2 = await res2.json();
-    expect(data2).toEqual(data1);
+    expect(res2.headers.get("X-Idempotency-Replay")).toBe("redacted");
+    await expect(res2.json()).resolves.toMatchObject({
+      code: "IDEMPOTENCY_RESPONSE_REDACTED",
+    });
   });
 });

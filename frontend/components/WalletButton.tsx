@@ -1,6 +1,8 @@
 "use client";
 
 import { IconWallet, IconChevronDown, IconAlertTriangle, IconInfoCircle, IconRefresh, IconNetwork } from "@tabler/icons-react";
+import { useTranslations } from "next-intl";
+import { IconWallet, IconChevronDown, IconAlertTriangle, IconInfoCircle, IconRefresh } from "@tabler/icons-react";
 import { useWallet } from "@/lib/wallet-context";
 import { getWalletErrorInfo, getWalletReportUrl } from "@/lib/wallet";
 import { NETWORK } from "@/lib/stellar";
@@ -9,6 +11,8 @@ import CopyButton from "@/components/CopyButton";
 
 export function WalletButton() {
   const { address, connecting, error, networkMismatch, connect, disconnect } = useWallet();
+  const { address, connecting, error, connect, disconnect } = useWallet();
+  const t = useTranslations();
 
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.35rem" }}>
@@ -18,8 +22,8 @@ export function WalletButton() {
             className="btn btn-secondary"
             onClick={disconnect}
             disabled={connecting}
-            title="Click to disconnect"
-            aria-label={`Connected wallet ${truncateAddress(address)}. Click to disconnect.`}
+            title={t("wallet.disconnect")}
+            aria-label={t("wallet.disconnectAriaLabel", { address: truncateAddress(address) })}
             style={{ fontFamily: "var(--font-mono), monospace", fontSize: "0.8rem" }}
           >
             <IconWallet size={14} aria-hidden="true" />
@@ -34,10 +38,10 @@ export function WalletButton() {
           className="btn btn-primary"
           onClick={connect}
           disabled={connecting}
-          aria-label={connecting ? "Connecting wallet" : "Connect wallet"}
+          aria-label={connecting ? t("wallet.connectingAriaLabel") : t("wallet.connect")}
         >
           <IconWallet size={14} aria-hidden="true" />
-          {connecting ? "Connecting…" : "Connect wallet"}
+          {connecting ? t("wallet.connecting") : t("wallet.connect")}
         </button>
       )}
 
@@ -82,7 +86,7 @@ export function WalletButton() {
                     className="btn btn-ghost btn-sm"
                     style={{ fontSize: "0.7rem", padding: "0.2rem 0.5rem" }}
                   >
-                    Install {error.walletName ?? "wallet"}
+                    {t("wallet.install", { walletName: error.walletName ?? "wallet" })}
                   </a>
                 ) : (
                   <>
@@ -94,7 +98,7 @@ export function WalletButton() {
                         className="btn btn-ghost btn-sm"
                         style={{ fontSize: "0.7rem", padding: "0.2rem 0.5rem" }}
                       >
-                        Report
+                        {t("wallet.report")}
                       </a>
                     )}
                     <button
@@ -103,7 +107,7 @@ export function WalletButton() {
                       style={{ fontSize: "0.7rem", padding: "0.2rem 0.5rem", flexShrink: 0 }}
                     >
                       <IconRefresh size={12} />
-                      Retry
+                      {t("wallet.retry")}
                     </button>
                   </>
                 )}

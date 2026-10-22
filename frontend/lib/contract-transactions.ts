@@ -25,6 +25,7 @@ import {
   type PreflightResult,
   evaluateSimulation,
 } from "./contract-errors";
+import { classifyRpcError, reportRpcHealthy, reportRpcIssue } from "./rpc-health";
 
 type SDK = typeof import("@stellar/stellar-sdk");
 
@@ -206,8 +207,9 @@ async function sendAndConfirm(
   const contract = new Contract(CONTRACTS.proofRegistry);
   const op = buildOp(contract);
 
+  const inclusionFee = (BigInt(BASE_FEE) * 2n).toString();
   const tx = new TransactionBuilder(account, {
-    fee: BASE_FEE,
+    fee: inclusionFee,
     networkPassphrase: NETWORK_PASSPHRASE,
   })
     .addOperation(op)
@@ -215,6 +217,10 @@ async function sendAndConfirm(
     .build();
 
   const prepared = await srv.prepareTransaction(tx);
+  // Add 25% safety headroom buffer for nested contract calls and execution variance
+  const feeNum = BigInt(prepared.fee || 0);
+  prepared.fee = ((feeNum * 125n) / 100n + 100n).toString();
+
   const signedXdr = await signTx(prepared.toXDR(), holder);
   const sent = await srv.sendTransaction(
     TransactionBuilder.fromXDR(signedXdr, NETWORK_PASSPHRASE),
@@ -280,31 +286,42 @@ async function runPreflight(
   const { Contract, TransactionBuilder, rpc, BASE_FEE } = await sdk();
   const srv = await getServer();
 
-  const account = await srv.getAccount(holder);
-  const contract = new Contract(CONTRACTS.proofRegistry);
-  const op = buildOp(contract);
+  try {
+    const account = await srv.getAccount(holder);
+    const contract = new Contract(CONTRACTS.proofRegistry);
+    const op = buildOp(contract);
 
-  const tx = new TransactionBuilder(account, {
-    fee: BASE_FEE,
-    networkPassphrase: NETWORK_PASSPHRASE,
-  })
-    .addOperation(op)
-    .setTimeout(timeoutSeconds)
-    .build();
+    const inclusionFee = (BigInt(BASE_FEE) * 2n).toString();
+    const tx = new TransactionBuilder(account, {
+      fee: inclusionFee,
+      networkPassphrase: NETWORK_PASSPHRASE,
+    })
+      .addOperation(op)
+      .setTimeout(timeoutSeconds)
+      .build();
 
-  const sim = await srv.simulateTransaction(tx);
-  if (rpc.Api.isSimulationError(sim)) {
-    const err =
-      typeof sim.error === "string"
-        ? sim.error
-        : JSON.stringify(sim.error ?? "Transaction would fail");
-    return evaluateSimulation({ success: false, error: err });
+    const sim = await srv.simulateTransaction(tx);
+    if (rpc.Api.isSimulationError(sim)) {
+      const err =
+        typeof sim.error === "string"
+          ? sim.error
+          : JSON.stringify(sim.error ?? "Transaction would fail");
+      return evaluateSimulation({ success: false, error: err });
+    }
+
+    // Soroban success responses carry the minimum resource fee (in stroops);
+    // older endpoints may omit it, in which case we report 0 rather than fail.
+    const fee = Number((sim as { minResourceFee?: string | number }).minResourceFee ?? 0);
+    reportRpcHealthy();
+    return evaluateSimulation({ success: true, minResourceFee: Number.isFinite(fee) ? fee : 0 });
+  } catch (e) {
+    // A preflight that throws never reached the ledger. Attributing that to the
+    // network (not to the holder's credential) is what the degraded-mode
+    // indicator in lib/rpc-health.ts drives (#634).
+    const issue = classifyRpcError(e);
+    if (issue.kind === "rpc-unreachable") reportRpcIssue(issue);
+    throw e;
   }
-
-  // Soroban success responses carry the minimum resource fee (in stroops);
-  // older endpoints may omit it, in which case we report 0 rather than fail.
-  const fee = Number((sim as { minResourceFee?: string | number }).minResourceFee ?? 0);
-  return evaluateSimulation({ success: true, minResourceFee: Number.isFinite(fee) ? fee : 0 });
 }
 
 // ── Public preflight functions ────────────────────────────────────────────────
@@ -480,8 +497,9 @@ export async function submitProofs(params: {
   const now = Math.floor(Date.now() / 1000);
   const op = buildSubmitProofsOp(contract, holder, submissions, now);
 
+  const inclusionFee = (BigInt(BASE_FEE) * 2n).toString();
   const tx = new TransactionBuilder(account, {
-    fee: BASE_FEE,
+    fee: inclusionFee,
     networkPassphrase: NETWORK_PASSPHRASE,
   })
     .addOperation(op)
@@ -489,6 +507,10 @@ export async function submitProofs(params: {
     .build();
 
   const prepared = await srv.prepareTransaction(tx);
+  // Add 25% safety headroom buffer for nested contract calls and execution variance
+  const feeNum = BigInt(prepared.fee || 0);
+  prepared.fee = ((feeNum * 125n) / 100n + 100n).toString();
+
   const signedXdr = await signTx(prepared.toXDR(), holder);
   const sent = await srv.sendTransaction(
     TransactionBuilder.fromXDR(signedXdr, NETWORK_PASSPHRASE),

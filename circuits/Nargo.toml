@@ -10,7 +10,9 @@ members = [
     "funds_proof",
     "accreditation_proof",
     "range_proof",
+    "date_range",
     "employment_proof",
     "aggregate_proof",
     "set_membership",
+    "composite_eligibility",
 ]

@@ -12,6 +12,13 @@ and submits it once on-chain. Any Stellar protocol can then check the result
 with a single read-only contract call — **verify once, trusted everywhere** —
 and the underlying credential data never touches the chain.
 
+> **Scope of that guarantee.** StellarCred hides the *contents* of a credential, not the
+> *fact* of a verification. On-chain claims, the wallet-to-claim link, the issuer's view of
+> the attribute at issuance, and delegation grants are deliberately **not** private. See
+> **[Limitations and non-goals](docs/LIMITATIONS.md)** for exactly what each party — issuer,
+> verifier, chain observer, indexer operator — observes, and what the system does not hide,
+> recover, or guarantee.
+
 StellarCred is not a KYC app. It's the interoperability layer between issuers
 and protocols: issuers integrate once, protocols integrate once, and users carry
 reusable proofs instead of re-submitting personal data to every app.
@@ -74,7 +81,7 @@ proof once and caches the result; every protocol afterwards reads
 ## Architecture & Overview
 
 For a detailed architectural description with diagrams, see the [Architecture Documentation](docs/ARCHITECTURE.md).
-For the authoritative specification of contract events, topic schemas, and indexer integration, see [EVENTS.md](EVENTS.md).
+For the authoritative specification of contract events, topic schemas, and indexer integration, see [docs/EVENTS.md](docs/EVENTS.md).
 
 ---
 
@@ -90,6 +97,7 @@ circuits/               Noir circuits (UltraHonk · Noir 1.0.0-beta.9 / bb 0.87.
   commit/                 issuer helper: returns Poseidon2([value, salt], 2)
   kyc_proof/              "I hold a credential the issuer committed to"
   age_proof/              "I am over N" without revealing date of birth
+  date_range/             "my credential was issued in this window" without revealing the date
   income_proof/           "my income exceeds T" without revealing it
   jurisdiction_proof/     "my country is not restricted" without revealing it
   funds_proof/            "my balance exceeds T" without revealing it
@@ -106,7 +114,8 @@ services/
 scripts/deploy.sh       deploy + wire + register issuer + install all VKs on testnet
 scripts/benchmark.sh    measure instruction budget for every public function on testnet
 BENCHMARKS.md           per-function instruction counts, ledger I/O, and fee estimates
-EVENTS.md               authoritative contract event topic & payload schemas
+docs/EVENTS.md          authoritative contract event topic & payload schemas
+docs/STORAGE_TTL.md     contract storage lifetime model, rent fees, and archival behavior
 ```
 
 All five credential circuits share one commitment scheme,
@@ -125,6 +134,12 @@ npm install @stellarcred/sdk
 ```
 
 > Full SDK docs: [`frontend/packages/sdk/README.md`](frontend/packages/sdk/README.md) · [npm](https://www.npmjs.com/package/@stellarcred/sdk)
+>
+> **Canonical Integration Example**: Looking for a complete, runnable end-to-end integration with wallet control challenge proof and server-side route gating? See [`examples/canonical-integration`](examples/canonical-integration).
+>
+> **TypeScript SDK Example**: Minimal TypeScript integration demonstrating typed imports, anti-spoofing challenge verification, and credential-gated Stellar transaction creation and signing. See [`examples/typescript`](examples/typescript).
+>
+> **TypeScript quickstart**: A minimal, CI-typechecked walkthrough — typed claim reads, a signed Stellar transaction, and the challenge flow — is in [`docs/SDK_TYPESCRIPT_EXAMPLE.md`](docs/SDK_TYPESCRIPT_EXAMPLE.md) and [`examples/typescript-quickstart`](examples/typescript-quickstart).
 
 Protocols never handle credential data - they ask the on-chain registry one
 question: _has this wallet proven the claim I require?_
@@ -136,8 +151,6 @@ import { StellarCred } from "@stellarcred/sdk";
 const canDeposit = await StellarCred.hasClaim(wallet, "kyc");
 
 // Threshold claim — enforce minimum on-chain
-const canAccessVault = await StellarCred.hasClaim(wallet, "funds", { minThreshold: 50000 });
-const canTrade = await StellarCred.hasClaim(wallet, "age", { minThreshold: 21 });
 const canAccessVault = await StellarCred.hasClaim(wallet, "funds", {
   minThreshold: 50000,
 });
@@ -179,7 +192,31 @@ full reference.
 | `age`          | Age ≥ threshold              | Date of birth             |
 | `income`       | Income ≥ threshold           | Actual income             |
 | `jurisdiction` | Country not restricted       | Country code              |
-| `funds`        | Balance ≥ threshold          | Exact balance (from Plaid)|
+| `funds`        | Balance ≥ threshold          | Exact balances (aggregate of linked Plaid accounts) |
+
+### Aggregate proof-of-funds
+
+Real proof-of-funds spans multiple accounts — checking here, a high-yield
+savings there. `funds` credentials attest to the **aggregate** balance summed
+across every linked Plaid item:
+
+- Configure one item via `PLAID_ACCESS_TOKEN`, or several (up to 25) via
+  `PLAID_ACCESS_TOKENS` (comma-separated); both may be set together.
+- The issuance server fetches each linked item, sums the available depository
+  balances, and the issuer signs a single commitment to the **sum**.
+- The `funds_proof` circuit then proves `sum ≥ threshold` without revealing
+  any component balance.
+- Per-source data (account names, per-item balances, access tokens) stays
+  server-side: it is never committed, logged (only source/account counts
+  reach the logs), stored in the browser credential, or written on-chain.
+- Aggregation **fails closed** — if any linked item errors or times out, no
+  balance is attested at all, because a partial sum is not the sum the
+  issuer would be attesting to.
+
+**Issuing credentials?** The issuer is the trust anchor of the system and has
+the most responsibility of the three roles — registration, key custody, what a
+signature actually attests to, rotation and revocation. Start here:
+**[Issuer onboarding guide](docs/ISSUER_ONBOARDING.md)**.
 
 ---
 
@@ -205,7 +242,16 @@ full reference.
    result. Identity fields are sent once to the provider and never stored.
 4. **Proof expiry.** `ProofRegistry` uses persistent storage with an explicit
    `expiry` (checked against ledger time) plus TTL extension.
-5. **Contract governance is role-based.** Privileged actions on `CredentialVerifier`, `IssuerRegistry`, and `ProofRegistry` are gated by a role map (`Map<Symbol, Address>`) rather than a single admin key. The deployer is seeded the `admin` role (plus `upgrader` and `pauser` on `ProofRegistry`) at construction, and the root admin can delegate or rotate holders with `grant_role` / `revoke_role` (`has_role` is a public view). Each privileged function is guarded by its specific role: `set_vk` / `deprecate_version` / `refresh_latest_version_ttl` → `admin`, issuer registration / revocation / metadata → `admin`, `ProofRegistry.upgrade` → `upgrader`, `pause` / `unpause` → `pauser`, `migrate_record` → `admin`. Upgrade and pause power can therefore live on separate keys (multisig, release engineer, security/ops key, DAO) from day-to-day administration, and each key can be rotated independently. `set_admin` transfers the root key together with every role the old root held, so the existing deploy/upgrade flow is unchanged.
+5. **Contract governance is role-based.** Privileged actions on `CredentialVerifier`, `IssuerRegistry`, and `ProofRegistry` are gated by a role map (`Map<Symbol, Address>`) rather than a single admin key. The deployer is seeded the `admin` role (plus `upgrader` and `pauser` on `ProofRegistry`) at construction, and the root admin can delegate or rotate holders with `grant_role` / `revoke_role` (`has_role` is a public view). Each privileged function is guarded by its specific role: `set_vk` / `deprecate_version` / `refresh_latest_version_ttl` → `admin`, issuer registration / revocation / metadata → `admin`, `ProofRegistry.upgrade` → `upgrader`, `pause` / `unpause` → `pauser`, `migrate_record` → `admin`. Upgrade and pause power can therefore live on separate keys (multisig, release engineer, security/ops key, DAO) from day-to-day administration, and each key can be rotated independently. The two-step `propose_admin` / `accept_admin` flow transfers the root key together with every role the old root held, so the existing deploy/upgrade flow is unchanged.
+
+Points 1–3 are **obligations on every issuer**, not background reading. The
+[issuer onboarding guide](docs/ISSUER_ONBOARDING.md) states each of them as a
+requirement, with the custody, rotation and revocation duties that go with them.
+
+These controls enforce what the cryptography protects. They do not make a verification
+private: for what the system deliberately does **not** hide, recover, or guarantee — broken
+down by which party observes what — see
+**[Limitations and non-goals](docs/LIMITATIONS.md)**.
 
 ---
 
@@ -232,6 +278,14 @@ no StellarCred account and no server-side credential database. This means:
   code whose payload is encrypted (AES-256-GCM, PBKDF2 key derivation) before
   leaving the device — scan it on the other device and enter the passphrase to
   import.
+- **Choose which PII fields exports include.** On the Holder page, **Export
+  field visibility** controls the sensitive credential attribute value and
+  holder wallet address. Both are included by default (including for existing
+  browser profiles). Turning either off omits that key from credential JSON
+  backups, encrypted transfers, and Guardian recovery exports; proof-history
+  JSON/CSV contain proof metadata only. An export with an omitted field cannot
+  fully restore or prove that credential. Preferences are local to this browser
+  profile, and no admin override exists for local exports.
 - **What reaches the server and chain.** The only server round-trip is
   `POST /api/witness` (rate-limited, never logged or persisted), which runs the
   Noir circuit and returns witness bytes for in-browser proving. On chain, only
@@ -350,6 +404,7 @@ StellarCred spans four toolchains (Rust contracts, Noir zk-circuits, Next.js fro
 | `make compile-circuits`| Circuits | Compiles Noir circuits and verifies verification keys (`bb`). |
 | `make test-frontend` | Frontend | Runs frontend SDK tests, theme tests, and issuer package tests. |
 | `make test-sdk` | SDK | Runs standalone `@stellarcred/sdk` integration tests. |
+| `make test-example` | Examples | Runs typecheck and test suite for `examples/canonical-integration` and `examples/typescript`. |
 | `make test-a11y` | Frontend | Runs axe-core accessibility checks via Playwright. |
 | `make test-indexer` | Indexer | Runs Jest test suite for the indexer service. |
 | `make run-indexer` | Indexer | Starts the local indexer service. |
