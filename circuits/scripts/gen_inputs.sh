@@ -100,7 +100,7 @@ SM_SALT="42"
 C=$(commit $SM_MEMBER $SM_SALT)
 # Compute merkle_root and the Merkle path lines for the member value.
 MERKLE_ROOT=$(node "$SCRIPTS"/merkle_tree.js root $SM_VALUES)
-MERLLE_LINES=$(node "$SCRIPTS"/merkle_tree.js path $SM_VALUES --for $SM_MEMBER)
+MERKLE_LINES=$(node "$SCRIPTS"/merkle_tree.js path $SM_VALUES --for $SM_MEMBER)
 {
   echo "value = \"$SM_MEMBER\""
   echo "salt = \"$SM_SALT\""
