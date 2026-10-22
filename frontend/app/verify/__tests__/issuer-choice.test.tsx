@@ -3,7 +3,8 @@
 // picking an issuer outside the protocol's trusted list warns instead of
 // silently issuing a proof that will be rejected.
 
-import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
+import { screen, fireEvent, waitFor, within } from "@testing-library/react";
+import { renderWithIntl } from "@/lib/test-utils";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { RegisteredIssuer } from "@/lib/issuer-registry";
 
@@ -128,7 +129,7 @@ describe("holder picks the issuer (#620)", () => {
   });
 
   it("lists the issuers that can attest the claim, preselects the protocol-accepted one", async () => {
-    render(<VerifyPage />);
+    renderWithIntl(<VerifyPage />);
 
     // Both age-capable issuers are offered, with their on-chain metadata.
     const picker = await screen.findByRole("radiogroup", {
@@ -153,7 +154,7 @@ describe("holder picks the issuer (#620)", () => {
   });
 
   it("warns when the holder picks an issuer the protocol will not accept, and still issues from it", async () => {
-    render(<VerifyPage />);
+    renderWithIntl(<VerifyPage />);
 
     const picker = await screen.findByRole("radiogroup", {
       name: /issuing authority/i,

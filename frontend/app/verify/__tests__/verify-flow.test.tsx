@@ -11,7 +11,8 @@
 // (frontend/app/verify/page.tsx) is intentional and is asserted here, not
 // changed.
 
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { screen, fireEvent, waitFor } from "@testing-library/react";
+import { renderWithIntl } from "@/lib/test-utils";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { Credential } from "@/lib/credential";
 
@@ -119,7 +120,7 @@ describe("verify -> issue -> redirect", () => {
         ),
     );
 
-    render(<VerifyPage />);
+    renderWithIntl(<VerifyPage />);
 
     const button = await screen.findByRole("button", { name: /get credential/i });
     fireEvent.click(button);
