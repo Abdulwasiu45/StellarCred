@@ -1,4 +1,5 @@
 import { render, screen, fireEvent } from "@testing-library/react";
+import { renderWithIntl } from "@/lib/test-utils";
 import { describe, expect, it, vi } from "vitest";
 import { WalletButton } from "./WalletButton";
 import { ThemeToggle } from "./ThemeToggle";
@@ -30,13 +31,13 @@ vi.mock("@/lib/wallet-context", () => ({
 
 describe("Accessibility Pass - Components ARIA Semantics", () => {
   it("WalletButton renders with accessible label", () => {
-    render(<WalletButton />);
+    renderWithIntl(<WalletButton />);
     const button = screen.getByRole("button", { name: /connect wallet/i });
     expect(button).toBeInTheDocument();
   });
 
   it("ThemeToggle renders with button role and aria-label", () => {
-    render(<ThemeToggle />);
+    renderWithIntl(<ThemeToggle />);
     const button = screen.getByRole("button", { name: /switch to/i });
     expect(button).toBeInTheDocument();
     expect(button).toHaveAttribute("aria-pressed");
@@ -149,7 +150,7 @@ describe("Accessibility Pass - Components ARIA Semantics", () => {
       );
     }
 
-    render(
+    renderWithIntl(
       <ToastProvider>
         <TestConsumer />
       </ToastProvider>,

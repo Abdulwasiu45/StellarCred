@@ -6,11 +6,9 @@ import {
   SentryClient,
   getSentryClient,
   initSentry,
-  getSentryClient,
   sanitizeErrorMessage,
   sanitizeHeaders,
   withSentryRouteHandler,
-  getSentryClient,
 } from "./sentry";
 
 describe("Sentry Error Monitoring (#853)", () => {
