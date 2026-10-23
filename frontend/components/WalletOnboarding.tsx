@@ -26,7 +26,6 @@ import { useState, useEffect, useCallback } from "react";
 import {
   IconWallet,
   IconAlertTriangle,
-  IconCheck,
   IconExternalLink,
   IconRefresh,
   IconPlugConnected,

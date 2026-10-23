@@ -13,21 +13,12 @@
 // is statically imported here. It is lazy-loaded on first use (connect/restore /
 // sign) so the root layout — and every page — avoids bundling it.
 
-import { NETWORK_PASSPHRASE } from "./stellar";
+import { NETWORK_PASSPHRASE, NETWORK, NETWORK_PRESETS } from "./stellar";
 import type {
   StellarWalletsKit,
   ModuleInterface,
   WalletNetwork,
 } from "@creit.tech/stellar-wallets-kit";
-// Not re-exported from the package root: unlike the browser-extension modules
-// allowAllModules() already covers, WalletConnect needs a projectId before it
-// can be constructed, so the kit excludes it from "modules that just work".
-import {
-  WalletConnectModule,
-  WalletConnectAllowedMethods,
-  WALLET_CONNECT_ID,
-} from "@creit.tech/stellar-wallets-kit/modules/walletconnect.module";
-import { NETWORK, NETWORK_PASSPHRASE, NETWORK_PRESETS } from "./stellar";
 import type { LedgerModule } from "./ledger-module";
 
 // One shared network mapping — previously via kitNetworkForPassphrase() in
@@ -370,25 +361,36 @@ export async function restore(walletId: string): Promise<string> {
   return address;
 }
 
+/** Sign a transaction XDR with the connected wallet; returns the signed XDR. */
+export async function signTx(xdr: string, address: string): Promise<string> {
+  const k = await getKit();
+  const { signedTxXdr } = await k.signTransaction(xdr, {
+    address,
+    networkPassphrase: NETWORK_PASSPHRASE,
+  });
+  return signedTxXdr;
+}
+
+// ---------------------------------------------------------------------------
+// Wallet onboarding helpers (Issue #904)
+// ---------------------------------------------------------------------------
+
 /**
  * Known Stellar wallet extensions and their install pages, used by the
  * onboarding UI to surface clear installation guidance when no wallet is
- * detected. The kit's `allowAllModules()` covers all of these at connect
- * time; this list is for the pre-connect "how do I get a wallet?" affordance.
+ * detected.
  */
 export interface WalletInstallInfo {
   id: string;
   name: string;
   installUrl: string;
-  /** Short description for the onboarding card. */
   description: string;
-  /** True when the wallet is a browser extension (vs. web-based). */
   isExtension: boolean;
 }
 
 export const KNOWN_WALLETS: WalletInstallInfo[] = [
   {
-    id: FREIGHTER_ID,
+    id: "freighter",
     name: "Freighter",
     installUrl: "https://www.freighter.app/",
     description: "Self-custody Stellar wallet — browser extension",
@@ -419,34 +421,26 @@ export const KNOWN_WALLETS: WalletInstallInfo[] = [
 
 /**
  * Best-effort detection of whether a browser wallet extension is installed.
- * Checks `window.freighter` (Freighter) and other known injection points.
+ * Checks `window.freighterApi` (Freighter) and other known injection points.
  * Returns the wallet id of the first detected extension, or null if none found.
- *
- * This is intentionally lightweight — the kit's own `openModal` does the
- * authoritative detection at connect time. This pre-check lets the onboarding
- * UI skip the "install a wallet" guidance when a wallet is already present.
  */
 export function detectInstalledWallet(): string | null {
   if (typeof window === "undefined") return null;
-  // Freighter injects `window.freighterApi` (or `window.freighter` on older versions).
   const w = window as unknown as Record<string, unknown>;
   const freighter = w.freighterApi ?? w.freighter;
-  if (freighter) return FREIGHTER_ID;
+  if (freighter) return "freighter";
   return null;
 }
 
 /**
- * Returns true when a known Stellar wallet extension appears to be installed
- * in the browser. Used by the onboarding flow to decide whether to show the
- * "install a wallet" guidance or jump straight to "connect wallet".
+ * Returns true when a known Stellar wallet extension appears to be installed.
  */
 export function isWalletInstalled(): boolean {
   return detectInstalledWallet() !== null;
 }
 
 /**
- * The Stellar network the app is configured for, as a human-readable string
- * suitable for display in the onboarding/network-mismatch warning.
+ * The Stellar network the app is configured for, as a human-readable string.
  */
 export function appNetworkName(): string {
   return NETWORK;
@@ -454,14 +448,11 @@ export function appNetworkName(): string {
 
 /**
  * The network name the connected wallet reports, or null if it can't be read.
- * Used by the network-mismatch warning to tell the user which network their
- * wallet is set to vs. which one the app expects.
  */
 export async function walletNetworkName(): Promise<string | null> {
   try {
-    const { networkPassphrase } = await getKit().getNetwork();
+    const { networkPassphrase } = await (await getKit()).getNetwork();
     if (!networkPassphrase) return null;
-    // Map known passphrases back to human-readable names.
     for (const [name, preset] of Object.entries(NETWORK_PRESETS)) {
       if (preset.networkPassphrase === networkPassphrase) {
         return name === "mainnet" ? "Mainnet (Public)" : name.charAt(0).toUpperCase() + name.slice(1);
@@ -471,14 +462,4 @@ export async function walletNetworkName(): Promise<string | null> {
   } catch {
     return null;
   }
-}
-
-/** Sign a transaction XDR with the connected wallet; returns the signed XDR. */
-export async function signTx(xdr: string, address: string): Promise<string> {
-  const k = await getKit();
-  const { signedTxXdr } = await k.signTransaction(xdr, {
-    address,
-    networkPassphrase: NETWORK_PASSPHRASE,
-  });
-  return signedTxXdr;
 }

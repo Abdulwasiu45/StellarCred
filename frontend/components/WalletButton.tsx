@@ -1,8 +1,7 @@
 "use client";
 
-import { IconWallet, IconChevronDown, IconAlertTriangle, IconInfoCircle, IconRefresh, IconNetwork } from "@tabler/icons-react";
 import { useTranslations } from "next-intl";
-import { IconWallet, IconChevronDown, IconAlertTriangle, IconInfoCircle, IconRefresh } from "@tabler/icons-react";
+import { IconWallet, IconChevronDown, IconAlertTriangle, IconInfoCircle, IconRefresh, IconNetwork } from "@tabler/icons-react";
 import { useWallet } from "@/lib/wallet-context";
 import { getWalletErrorInfo, getWalletReportUrl } from "@/lib/wallet";
 import { NETWORK } from "@/lib/stellar";
@@ -11,7 +10,6 @@ import CopyButton from "@/components/CopyButton";
 
 export function WalletButton() {
   const { address, connecting, error, networkMismatch, connect, disconnect } = useWallet();
-  const { address, connecting, error, connect, disconnect } = useWallet();
   const t = useTranslations();
 
   return (

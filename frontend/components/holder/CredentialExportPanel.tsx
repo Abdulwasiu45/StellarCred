@@ -32,7 +32,7 @@ import {
 } from "@tabler/icons-react";
 import { loadCredentials, type Credential } from "@/lib/credential";
 import { getSubmissions, type SubmissionRecord } from "@/lib/history";
-import { proofStatus, daysRemaining } from "@/lib/proof-helpers";
+import { proofStatus } from "@/lib/proof-helpers";
 import { downloadCredentialExport } from "@/lib/credential-export";
 
 function formatDate(unixSeconds: number): string {

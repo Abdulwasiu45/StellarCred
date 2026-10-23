@@ -15,10 +15,6 @@ import {
 
 import { WalletButton } from "@/components/WalletButton";
 import { WalletOnboarding } from "@/components/WalletOnboarding";
-import { CredentialExportPanel } from "@/components/holder/CredentialExportPanel";
-import { useWallet } from "@/lib/wallet-context";
-import { Badge } from "@/components/Badge";
-import { Check } from "@/components/Check";
 import { ConfigBanner } from "@/components/ConfigBanner";
 import { ExportVisibilitySettings } from "@/components/ExportVisibilitySettings";
 import CredentialDetailModal from "@/components/CredentialDetailModal";
@@ -42,6 +38,7 @@ import { SponsorBanner } from "@/components/holder/SponsorBanner";
 import { GuardianRecoveryControl } from "@/components/holder/GuardianRecoveryControl";
 import { ProofFlowView } from "@/components/holder/ProofFlowView";
 import { BatchProofFlowView } from "@/components/holder/BatchProofFlowView";
+import { CredentialExportPanel } from "@/components/holder/CredentialExportPanel";
 
 // The encrypted-transfer modals are heavy (crypto.ts PBKDF2/AES-GCM, QR
 // rendering) and only needed when the user actually starts a transfer — load
@@ -196,6 +193,7 @@ function HolderInner() {
       <ConfigBanner />
 
       <WalletOnboarding />
+
       <SponsorBanner />
 
       {isPreview && (
