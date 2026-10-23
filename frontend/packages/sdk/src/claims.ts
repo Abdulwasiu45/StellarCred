@@ -1849,10 +1849,6 @@ export async function isNullifierUsed(
   nullifier: string,
   opts?: { requestTimeoutMs?: number; throwOnError?: boolean },
 ): Promise<boolean> {
-  const throwOnError = opts?.throwOnError === true;
-  const client = await getClient(throwOnError);
-  if (!client) return false;
-
   const client = (await getClient(opts?.throwOnError)) as any;
   if (!client) {
     return false;
@@ -1861,34 +1857,18 @@ export async function isNullifierUsed(
     return false;
   }
   try {
-    // The generated ProofRegistry bindings (packages/proof-registry) predate the
-    // nullifier entrypoints (#395): the contract exposes `is_nullifier_used`, but
-    // the generated client (and its spec) does not declare it yet. Call it through
-    // the shape the contract actually implements so the SDK stays typed; once the
-    // bindings are regenerated this narrows to the generated method.
-    const { result } = await withRequestTimeout(
+    const res: any = await withRequestTimeout(
       () =>
-        (
-          client as unknown as {
-            is_nullifier_used(args: {
-              app_context: string;
-              nullifier: string;
-            }): Promise<{ result: boolean }>;
-          }
-        ).is_nullifier_used({
+        client.is_nullifier_used({
           app_context: appContext,
           nullifier,
         }),
       opts?.requestTimeoutMs ?? _config.requestTimeoutMs,
     );
-    return result ?? false;
     return typeof res?.result === "boolean" ? res.result : Boolean(res);
   } catch (err) {
-    if (throwOnError) {
-      if (err instanceof ConfigError) throw err;
-      throw new RpcError(`Failed to check nullifier for context "${appContext}"`, {
-        cause: err,
-      });
+    if (opts?.throwOnError) {
+      throw new RpcError(`Failed to check nullifier for context "${appContext}"`, { cause: err });
     }
     return false;
   }

@@ -7,14 +7,15 @@
 import type { NextRequest, NextResponse } from "next/server";
 import { logger, stripSensitiveFields } from "../logger";
 
-// This module is also imported from middleware.ts, which is bundled for the
-// Edge runtime and cannot resolve `node:crypto`. Web Crypto's getRandomValues
-// is available in the Node, Edge and browser runtimes, so ids are generated
-// from it instead (same hex output as crypto.randomUUID().replace(/-/g, "")).
-function randomHex(byteLength: number): string {
-  const bytes = new Uint8Array(byteLength);
-  globalThis.crypto.getRandomValues(bytes);
-  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+function generateUUID(): string {
+  if (typeof globalThis !== "undefined" && globalThis.crypto?.randomUUID) {
+    return globalThis.crypto.randomUUID();
+  }
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
 }
 
 export interface SentryConfig {
@@ -170,7 +171,7 @@ export class SentryClient {
    * Captures an exception with relevant tags and environment metadata.
    */
   async captureException(error: unknown, context: SentryErrorContext = {}): Promise<string> {
-    const eventId = randomHex(16);
+    const eventId = generateUUID().replace(/-/g, "");
     const errorObj = error instanceof Error ? error : new Error(String(error));
     const safeMsg = sanitizeErrorMessage(errorObj.message);
 
@@ -295,7 +296,7 @@ export function withSentryRouteHandler(
       return await handler(req, ...args);
     } catch (error) {
       const requestId =
-        req.headers.get("x-request-id") ?? randomHex(8);
+        req.headers.get("x-request-id") ?? generateUUID().replace(/-/g, "").slice(0, 16);
       const method = req.method;
       const path = req.nextUrl?.pathname ?? "unknown_endpoint";
 
