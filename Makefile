@@ -288,17 +288,17 @@ run-indexer:
 #   make backfill-resume                         # continue from checkpoint
 # Progress is printed per batch; a checkpoint is persisted after each batch so
 # an interrupted run resumes without re-fetching completed ledgers.
-# Rule of thumb: throughput is bound by RPC rate limits (~1 batch/100ms);
-# expect roughly 1 ledger range of 10k ledgers per minute on a paid endpoint.
+# Throughput is bound by Horizon rate limits (one request per page of up to
+# 200 events), so run time tracks event density rather than ledger count.
 
-BACKFILL_FROM   ?= genesis
-BACKFILL_TO     ?= head
-BACKFILL_BATCH  ?= 200
+FROM  ?= genesis
+TO    ?= head
+BATCH ?= 200
 
 ## backfill: Index a bounded ledger range in batched, resumable mode
 backfill:
-	cd services/indexer && npm run backfill -- --from $(BACKFILL_FROM) --to $(BACKFILL_TO) --batch-size $(BACKFILL_BATCH)
+	cd services/indexer && npm run backfill -- --from $(FROM) --to $(TO) --batch-size $(BATCH)
 
 ## backfill-resume: Resume an interrupted backfill from its persisted checkpoint
 backfill-resume:
-	cd services/indexer && npm run backfill -- --resume --batch-size $(BACKFILL_BATCH)
+	cd services/indexer && npm run backfill -- --resume --batch-size $(BATCH)
