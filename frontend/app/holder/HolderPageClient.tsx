@@ -43,18 +43,9 @@ import { CredentialExportPanel } from "@/components/holder/CredentialExportPanel
 // The encrypted-transfer modals are heavy (crypto.ts PBKDF2/AES-GCM, QR
 // rendering) and only needed when the user actually starts a transfer — load
 // them lazily so the holder route's 15 kB bundle budget stays intact.
-const TransferExportModal = dynamic(
-  () => import("@/components/TransferExportModal").then((m) => m.TransferExportModal),
-  { ssr: false },
-);
-const TransferImportModal = dynamic(
-  () => import("@/components/TransferImportModal").then((m) => m.TransferImportModal),
-  { ssr: false },
-);
-const ExportDataModal = dynamic(
-  () => import("@/components/ExportDataModal").then((m) => m.ExportDataModal),
-  { ssr: false },
-);
+const TransferExportModal = dynamic(() => import("@/components/TransferExportModal").then((m) => m.TransferExportModal), { ssr: false });
+const TransferImportModal = dynamic(() => import("@/components/TransferImportModal").then((m) => m.TransferImportModal), { ssr: false });
+const ExportDataModal = dynamic(() => import("@/components/ExportDataModal").then((m) => m.ExportDataModal), { ssr: false });
 
 type PageView =
   | { kind: "list" }
@@ -73,14 +64,7 @@ function HolderInner() {
   const searchParams = useSearchParams();
   const toast = useToast();
 
-  const {
-    creds,
-    reload,
-    save,
-    remove,
-    markCredentialProved,
-    markCredentialsProved,
-  } = useCredentialStore();
+  const { creds, reload, save, remove, markCredentialProved, markCredentialsProved } = useCredentialStore();
   const { downloadBackup } = useImportExport();
 
   const [view, setView] = useState<PageView>({ kind: "list" });
