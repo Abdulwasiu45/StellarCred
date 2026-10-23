@@ -20,6 +20,8 @@ import {
   tooManyRequestsResponse,
   LIMITS,
 } from "@/lib/rate-limit";
+import { bodyErrorResponse } from "@/lib/request-limits";
+import { logger, stripSensitiveFields, resolveRequestId } from "@/lib/logger";
 import {
   completedIdempotencyRecord,
   idempotencyGetAsync,
@@ -41,7 +43,32 @@ const SIM_ACCOUNT =
 // readonly CredentialType[] widened to string[] so .includes() accepts any
 // user-supplied string during validation, before it's known to be valid.
 const VALID_TYPES: readonly string[] = CREDENTIAL_TYPES;
+import {
+  normalizeIssueRequest,
+  parseIssueBody,
+  resolveIssuerClient,
+  resolveRequestTenant,
+  validateIssueRequest,
+  validateIssuerRegistration,
+  type ValidationFailure,
+} from "./handlers/validate";
+import { enforceIpRateLimit, enforceWalletRateLimit } from "./handlers/rateLimit";
+import { runIssuanceFlow } from "./handlers/issuanceFlow";
 
+/**
+ * POST /api/issue — thin dispatcher.
+ *
+ * The work is split into focused modules so this file only sequences it:
+ *
+ *   handlers/validate.ts      tenant auth, parsing, normalisation, field,
+ *                             tenant and issuer-registry checks
+ *   handlers/rateLimit.ts     the per-IP and per-wallet limits
+ *   handlers/issuanceFlow.ts  Persona, Plaid, signing, deployment/circuit stamps
+ *
+ * What stays here is request lifecycle: the idempotency cache (lookup, replay,
+ * single-flight join, write-back), the ordering of those steps, and turning an
+ * outcome into a response with `x-request-id` on it.
+ */
 export async function POST(req: NextRequest) {
   const requestId = resolveRequestId(req.headers.get("x-request-id"));
 
@@ -80,24 +107,14 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ── Rate limiting ────────────────────────────────────────────────────────
-  const ip = extractIp(req);
-  const windowMs = LIMITS.windowMs();
-  const ipResult = checkLimit(`issue:ip:${ip}`, LIMITS.issuePerIp(), windowMs);
-  if (ipResult.throttled) {
-    logger.warn(
-      stripSensitiveFields({
-        event: "rate_limited",
-        route: "issue",
-        dimension: "ip",
-        ipToken: hashForLog(ip),
-        requestId,
-      }),
-    );
+  // Per-IP limit runs before the body is read, and before the idempotency
+  // cache, so a throttled IP never gets its 429 stored and replayed.
+  const ipLimited = enforceIpRateLimit(req, requestId);
+  if (ipLimited) {
     if (idempotencyKey) {
       idempotencyInFlightFail(idempotencyKey, new Error("rate limited"));
     }
-    return tooManyRequestsResponse(ipResult.retryAfterMs);
+    return ipLimited;
   }
 
   try {
@@ -108,6 +125,8 @@ export async function POST(req: NextRequest) {
   }
 }
 
+/** A replay never re-sends credential material: only the Persona redirect is
+ * reproducible, because it is just a URL the holder must still complete. */
 function replayIdempotencyRecord(record: IdempotencyRecord, requestId: string): NextResponse {
   const headers = new Headers({
     "x-request-id": requestId,
@@ -135,6 +154,11 @@ function replayIdempotencyRecord(record: IdempotencyRecord, requestId: string): 
   );
 }
 
+/** Render a validation verdict as the JSON error response callers expect. */
+function failureResponse(failure: ValidationFailure): NextResponse {
+  return NextResponse.json({ error: failure.error }, { status: failure.status });
+}
+
 async function executeRequest(
   req: NextRequest,
   requestId: string,
@@ -158,8 +182,22 @@ async function executeRequest(
     returnUrl?: string;
     preview?: boolean;
   };
+  // Tenant authentication comes first: a request that cannot prove which
+  // tenant it belongs to must not have its body read or cached.
+  const tenantRes = await resolveRequestTenant(req);
+  if (!tenantRes.ok) {
+    if (idempotencyKey) {
+      idempotencyInFlightFail(idempotencyKey, new Error(tenantRes.error));
+    }
+    const res = NextResponse.json({ error: tenantRes.error }, { status: tenantRes.status });
+    res.headers.set("x-request-id", requestId);
+    return res;
+  }
+  const tenant = tenantRes.tenant;
 
-  const parsed = await readJsonBody<BodyType>(req);
+  // A body that cannot be read or parsed is answered directly: it is not a
+  // verdict on an issuance request, so it is neither cached nor logged as one.
+  const parsed = await parseIssueBody(req);
   if (!parsed.ok) {
     if (idempotencyKey) {
       idempotencyInFlightFail(idempotencyKey, new Error("invalid request body"));
@@ -168,18 +206,10 @@ async function executeRequest(
     res.headers.set("x-request-id", requestId);
     return res;
   }
-  const body = parsed.body;
 
-  const {
-    holder,
-    issuerId,
-    issuerName = "StellarCred Authority",
-    expiry = "90 days",
-    claimParams,
-    persona_inquiry_id: personaInquiryId,
-    returnUrl,
-  } = body;
-  const walletAddress = holder;
+  const request = normalizeIssueRequest(parsed.body, tenant);
+  const walletAddress = request.holder;
+  const issuerId = request.issuerId;
 
   const sendResponse = async (response: NextResponse, record?: IdempotencyRecord) => {
     const durationMs = Date.now() - startTime;
@@ -187,6 +217,9 @@ async function executeRequest(
 
     if (idempotencyKey) {
       try {
+        // Only outcomes that can be replayed without retaining credential
+        // material are cached: a 200 stores a hash, a Persona redirect stores
+        // the inquiry URL. Everything else releases the in-flight slot.
         const completedRecord =
           record ??
           (response.status === 200
@@ -223,39 +256,14 @@ async function executeRequest(
   };
 
   // ── Per-wallet rate limit ────────────────────────────────────────────────
-  if (holder) {
-    const walletResult = checkLimit(
-      `issue:wallet:${holder}`,
-      LIMITS.issuePerWallet(),
-      LIMITS.windowMs(),
-    );
-    if (walletResult.throttled) {
-      logger.warn(
-        stripSensitiveFields({
-          event: "rate_limited",
-          route: "issue",
-          dimension: "wallet",
-          walletToken: hashForLog(holder),
-          requestId,
-        }),
-      );
-      return sendResponse(tooManyRequestsResponse(walletResult.retryAfterMs));
-    }
+  if (walletAddress) {
+    const walletLimited = enforceWalletRateLimit(walletAddress, requestId);
+    if (walletLimited) return sendResponse(walletLimited);
   }
 
-  // Normalize to multi-claim shape
-  credentialTypes = body.credential_types ?? (body.type ? [body.type] : []);
-  for (const type of credentialTypes) {
-    logger.info(
-      stripSensitiveFields({
-        event: "request_received",
-        credentialType: type,
-        issuerId,
-        walletAddress,
-        requestId,
-      }),
-    );
-  }
+  // `credentialTypes` is set only once the request is past the wallet limit,
+  // so a throttled wallet still produces no `response_sent` lines.
+  credentialTypes = request.credentialTypes;
 
   const attributes: Record<string, string> = { ...(body.attributes ?? {}) };
   if (body.attribute !== undefined && body.type) {
@@ -335,11 +343,32 @@ async function executeRequest(
     const { localIssuerPubkeyBytes } = await import("@/lib/issuer-service");
     const localKey = localIssuerPubkeyBytes();
     if (!Buffer.from(registered).equals(localKey)) {
+  const validated = validateIssueRequest(request, requestId, tenant);
+  if (!validated.ok) return sendResponse(failureResponse(validated.failure));
+
+  const issuerClient = await resolveIssuerClient(tenant);
+  const registrationFailure = await validateIssuerRegistration(
+    validated.request.issuerId,
+    issuerClient,
+  );
+  if (registrationFailure) {
+    return sendResponse(failureResponse(registrationFailure));
+  }
+
+  const result = await runIssuanceFlow(validated.request, {
+    requestId,
+    origin: req.nextUrl.origin,
+    issuerClient,
+  });
+
+  switch (result.kind) {
+    case "persona":
       return sendResponse(
         NextResponse.json(
           {
-            error:
-              "ISSUER_PRIVATE_KEY does not match the selected issuer's registered public key on IssuerRegistry. Choose the issuer that matches your server key, or update ISSUER_PRIVATE_KEY.",
+            needsPersona: true,
+            personaUrl: result.personaUrl,
+            inquiryId: result.inquiryId,
           },
           { status: 403 },
         ),
@@ -557,5 +586,14 @@ async function executeRequest(
       exception: e,
     });
     return sendResponse(NextResponse.json({ error: (e as Error).message }, { status: 500 }));
+          { status: 202 },
+        ),
+        personaPendingIdempotencyRecord(result.inquiryId, result.personaUrl),
+      );
+    case "issued":
+      outcome = "success";
+      return sendResponse(NextResponse.json({ credentials: result.credentials }));
+    case "error":
+      return sendResponse(NextResponse.json(result.body, { status: result.status }));
   }
 }

@@ -457,6 +457,14 @@ export interface ClaimOptions {
    * Requires `indexerUrl` to be configured. See {@link ClaimSource}.
    */
   source?: ClaimSource;
+  /**
+   * Application context identifier for unique-personhood / Sybil resistance (#395).
+   * Protocols pass `appContext` to enforce one-per-person verification per app
+   * without linking identities across apps.
+   */
+  appContext?: string;
+  /** Optional pre-derived nullifier. When omitted with appContext, derived from witness if available. */
+  nullifier?: string;
 }
 
 export interface Claim {
@@ -1556,6 +1564,82 @@ export async function getClaims(
 
 export function buildVerifyUrl(opts: BuildVerifyUrlOptions): string {
   return buildVerifyUrlWithBase(opts, _config.baseUrl);
+export function buildVerifyUrl(opts: {
+  returnUrl: string;
+  claim?: ClaimType;
+  claims?: ClaimType[];
+  wallet?: string;
+  state?: string;
+  baseUrl?: string;
+  expiresInMinutes?: number;
+  /**
+   * When true, generate a URL-safe single-use token id (`jti`) and embed it
+   * in the link. The verify page consumes it on first successful use and
+   * rejects subsequent visits in the same browser session.
+   */
+  singleUse?: boolean;
+  claimParams?: {
+    threshold?: string;
+    threshold_years?: string;
+    restricted?: string | string[];
+  };
+}): string {
+  const base = opts.baseUrl ?? _config.baseUrl;
+  const url = new URL("/verify", base);
+  url.searchParams.set("return_url", opts.returnUrl);
+
+  if (opts.claim) {
+    url.searchParams.set("claim", opts.claim);
+  }
+  if (opts.claims && opts.claims.length > 0) {
+    url.searchParams.set("claims", opts.claims.join(","));
+  }
+  if (opts.wallet) {
+    url.searchParams.set("wallet", opts.wallet);
+  }
+  if (opts.state) {
+    url.searchParams.set("state", opts.state);
+  }
+  if (opts.claimParams) {
+    if (opts.claimParams.threshold) {
+      url.searchParams.set("param_threshold", opts.claimParams.threshold);
+    }
+    if (opts.claimParams.threshold_years) {
+      url.searchParams.set("param_threshold_years", opts.claimParams.threshold_years);
+    }
+    if (opts.claimParams.restricted) {
+      const restricted = Array.isArray(opts.claimParams.restricted)
+        ? opts.claimParams.restricted.join(",")
+        : opts.claimParams.restricted;
+      url.searchParams.set("param_restricted", restricted);
+    }
+  }
+
+  if (opts.expiresInMinutes !== undefined) {
+    if (!Number.isFinite(opts.expiresInMinutes) || opts.expiresInMinutes <= 0) {
+      throw new Error("expiresInMinutes must be a positive number");
+    }
+    const exp = Math.floor(Date.now() / 1000) + Math.floor(opts.expiresInMinutes * 60);
+    url.searchParams.set("exp", String(exp));
+  }
+
+  if (opts.singleUse) {
+    let jti: string;
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+      jti = crypto.randomUUID().replace(/-/g, "");
+    } else if (typeof crypto !== "undefined" && typeof crypto.getRandomValues === "function") {
+      const bytes = new Uint8Array(16);
+      crypto.getRandomValues(bytes);
+      jti = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+    } else {
+      throw new Error(
+        "singleUse requires a crypto implementation with randomUUID or getRandomValues",
+      );
+    }
+    url.searchParams.set("jti", jti);
+  }
+
+  return url.toString();
 }
 
 export function buildIssuerUrl(opts: {
@@ -1736,4 +1820,88 @@ export function watchClaim(
       poll();
     });
   }
+}
+
+// ---------------------------------------------------------------------------
+// Nullifier / Unique Personhood (#395)
+// ---------------------------------------------------------------------------
+
+/**
+ * Derives a deterministic per-app nullifier for cross-app unlinkable Sybil resistance (#395).
+ * Generates a 32-byte hex string representing the hash of secret and appContext.
+ */
+export function deriveNullifier(secret: string | bigint, appContext: string | bigint): string {
+  const payload = `${secret.toString()}::${appContext.toString()}`;
+  let h1 = 0xdeadbeef ^ 42;
+  let h2 = 0x41c6ce57 ^ 42;
+  for (let i = 0; i < payload.length; i++) {
+    const ch = payload.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  const part1 = (h1 >>> 0).toString(16).padStart(8, "0");
+  const part2 = (h2 >>> 0).toString(16).padStart(8, "0");
+  const part3 = (Math.imul(h1, 31) >>> 0).toString(16).padStart(8, "0");
+  const part4 = (Math.imul(h2, 37) >>> 0).toString(16).padStart(8, "0");
+  return `${part1}${part2}${part3}${part4}`.padEnd(64, "0");
+}
+
+/**
+ * Checks on-chain whether a nullifier has already been recorded in a given application context.
+ */
+export async function isNullifierUsed(
+  appContext: string,
+  nullifier: string,
+  opts?: { requestTimeoutMs?: number; throwOnError?: boolean },
+): Promise<boolean> {
+  const client = (await getClient(opts?.throwOnError)) as any;
+  if (!client) {
+    return false;
+  }
+  if (typeof client.is_nullifier_used !== "function") {
+    return false;
+  }
+  try {
+    const res: any = await withRequestTimeout(
+      () =>
+        client.is_nullifier_used({
+          app_context: appContext,
+          nullifier,
+        }),
+      opts?.requestTimeoutMs ?? _config.requestTimeoutMs,
+    );
+    return typeof res?.result === "boolean" ? res.result : Boolean(res);
+  } catch (err) {
+    if (opts?.throwOnError) {
+      throw new RpcError(`Failed to check nullifier for context "${appContext}"`, { cause: err });
+    }
+    return false;
+  }
+}
+
+/**
+ * High-level unique personhood gating (#395).
+ * Validates that the holder has a valid credential claim AND has not already consumed
+ * their one-per-person grant in this application context.
+ */
+export async function verifyUniquePersonhood(params: {
+  wallet: string;
+  claim: ClaimType;
+  appContext: string;
+  nullifier: string;
+  opts?: ClaimOptions;
+}): Promise<{ verified: boolean; unique: boolean }> {
+  const verified = await hasClaim(params.wallet, params.claim, params.opts);
+  if (!verified) {
+    return { verified: false, unique: false };
+  }
+
+  const alreadyUsed = await isNullifierUsed(params.appContext, params.nullifier, {
+    requestTimeoutMs: params.opts?.requestTimeoutMs,
+    throwOnError: params.opts?.throwOnError,
+  });
+
+  return { verified: true, unique: !alreadyUsed };
 }
