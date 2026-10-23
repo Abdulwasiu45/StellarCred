@@ -81,12 +81,12 @@ vi.mock("@/components/WalletButton", () => ({ WalletButton: () => null }));
 // asserts that), which disables the issue button as "app not configured". This
 // test is about issuer choice, so pretend the deployment is configured.
 vi.mock("@/lib/config", async (importOriginal: any) => {
-  const actual = await importOriginal() as typeof import("@/lib/config");
+  const actual = (await importOriginal()) as typeof import("@/lib/config");
   return { ...actual, issuanceConfigured: () => true };
 });
 
 vi.mock("@/lib/credential", async (importOriginal: any) => {
-  const actual = await importOriginal() as typeof import("@/lib/credential");
+  const actual = (await importOriginal()) as typeof import("@/lib/credential");
   return { ...actual, saveCredential: vi.fn() };
 });
 
@@ -164,15 +164,10 @@ describe("holder picks the issuer (#620)", () => {
     await screen.findByText(/trusted-issuer list/i);
     expect(screen.getByText(/will reject a proof from it/i)).toBeInTheDocument();
 
-    fireEvent.click(
-      await screen.findByRole("button", { name: /get credential/i }),
-    );
+    fireEvent.click(await screen.findByRole("button", { name: /get credential/i }));
     // The registry read already used fetch, so wait for the issue POST itself.
     await waitFor(() =>
-      expect(fetch).toHaveBeenCalledWith(
-        "/api/issue",
-        expect.objectContaining({ method: "POST" }),
-      ),
+      expect(fetch).toHaveBeenCalledWith("/api/issue", expect.objectContaining({ method: "POST" })),
     );
     expect(issueBody().issuerId).toBe(ISSUER_FOR_AGE_AND_KYC);
     expect(issueBody().issuerName).toBe("Globule Registry");

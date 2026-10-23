@@ -162,7 +162,9 @@ describe("Sentry Error Monitoring (#853)", () => {
   });
 
   it("withSentryRouteHandler generates a requestId when x-request-id header is absent", async () => {
-    const failingHandler = async () => { throw new Error("no-header-test"); };
+    const failingHandler = async () => {
+      throw new Error("no-header-test");
+    };
     const wrapped = withSentryRouteHandler(failingHandler);
     const req = new NextRequest("http://localhost:3000/api/test-no-header", { method: "GET" });
     const res = await wrapped(req);

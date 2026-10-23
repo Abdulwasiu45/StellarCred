@@ -117,7 +117,7 @@ describe("Accessibility Pass - Components ARIA Semantics", () => {
           expiry: "30 days",
         }}
         onClose={handleClose}
-      />
+      />,
     );
     const dialog = screen.getByRole("dialog", { name: /transfer credential/i });
     expect(dialog).toBeInTheDocument();
@@ -144,9 +144,7 @@ describe("Accessibility Pass - Components ARIA Semantics", () => {
     function TestConsumer() {
       const toast = useToast();
       return (
-        <button onClick={() => toast.success("Proof generated successfully")}>
-          Trigger Toast
-        </button>
+        <button onClick={() => toast.success("Proof generated successfully")}>Trigger Toast</button>
       );
     }
 
@@ -163,4 +161,3 @@ describe("Accessibility Pass - Components ARIA Semantics", () => {
     expect(screen.getByText("Proof generated successfully")).toBeInTheDocument();
   });
 });
-

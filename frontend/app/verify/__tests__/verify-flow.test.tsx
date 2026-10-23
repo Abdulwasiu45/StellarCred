@@ -57,18 +57,21 @@ vi.mock("@/components/WalletButton", () => ({
 // vitest deliberately leaves the contract IDs unset (lib/__tests__/config.test.ts
 // asserts that), which disables the issue button as "app not configured".
 vi.mock("@/lib/config", async (importOriginal: any) => {
-  const actual = await importOriginal() as typeof import("@/lib/config");
+  const actual = (await importOriginal()) as typeof import("@/lib/config");
   return { ...actual, issuanceConfigured: () => true };
 });
 
 vi.mock("@/lib/credential", async (importOriginal: any) => {
-  const actual = await importOriginal() as typeof import("@/lib/credential");
+  const actual = (await importOriginal()) as typeof import("@/lib/credential");
   return { ...actual, saveCredential: vi.fn() };
 });
 
 import VerifyPage from "@/app/verify/page";
 
-function mockJsonResponse(body: unknown, init?: { status?: number; headers?: Record<string, string> }) {
+function mockJsonResponse(
+  body: unknown,
+  init?: { status?: number; headers?: Record<string, string> },
+) {
   return {
     ok: (init?.status ?? 200) < 400,
     status: init?.status ?? 200,
@@ -109,15 +112,14 @@ describe("verify -> issue -> redirect", () => {
       expiry: "90 days",
     };
 
-    (fetch as unknown as ReturnType<typeof vi.fn>).mockImplementation(
-      (input: string) =>
-        Promise.resolve(
-          // Empty registry -> the page keeps its demo-issuer fallback (#620),
-          // so this test exercises the same path it did before the picker.
-          input === "/api/issuers"
-            ? mockJsonResponse({ issuers: [] })
-            : mockJsonResponse({ credentials: [issuedCredential] }),
-        ),
+    (fetch as unknown as ReturnType<typeof vi.fn>).mockImplementation((input: string) =>
+      Promise.resolve(
+        // Empty registry -> the page keeps its demo-issuer fallback (#620),
+        // so this test exercises the same path it did before the picker.
+        input === "/api/issuers"
+          ? mockJsonResponse({ issuers: [] })
+          : mockJsonResponse({ credentials: [issuedCredential] }),
+      ),
     );
 
     renderWithIntl(<VerifyPage />);
@@ -127,10 +129,7 @@ describe("verify -> issue -> redirect", () => {
 
     // The issuance call carries a request id header for cross-route tracing (#221).
     await waitFor(() =>
-      expect(fetch).toHaveBeenCalledWith(
-        "/api/issue",
-        expect.objectContaining({ method: "POST" }),
-      ),
+      expect(fetch).toHaveBeenCalledWith("/api/issue", expect.objectContaining({ method: "POST" })),
     );
     const issueCall = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.find(
       ([url]) => url === "/api/issue",
