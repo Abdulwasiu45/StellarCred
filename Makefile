@@ -19,6 +19,7 @@ PNPM_MAJOR      := 9
 
 .PHONY: help all build test lint fmt clean check-api-reference doctor \
         build-contracts test-contracts lint-contracts \
+        ci-cache-setup ci-cache-save build-contracts-fast \
         compile-circuits check-circuits \
         build-frontend test-frontend lint-frontend test-sdk test-example test-a11y \
         build-indexer test-indexer lint-indexer run-indexer
@@ -47,6 +48,8 @@ help:
 	@echo "  make build-contracts - Compile Soroban contracts to wasm32v1-none"
 	@echo "  make test-contracts  - Run cargo contract unit & snapshot tests"
 	@echo "  make lint-contracts  - Run clippy with -D warnings on contracts"
+	@echo "  make build-contracts-fast - Quick Soroban build reusing local cargo cache (PR path)"
+	@echo "  make ci-cache-setup  - Restore Cargo target cache (used by contracts CI)"
 	@echo "  make compile-circuits- Compile Noir zk circuits and derive VKs"
 	@echo "  make build-frontend  - Build Next.js frontend web app"
 	@echo "  make test-frontend   - Run frontend and SDK unit tests"
@@ -204,6 +207,10 @@ doctor:
 build-contracts:
 	cargo build --release --target wasm32v1-none --locked
 
+## build-contracts-fast: Quick Soroban build reusing local cargo cache (PR path)
+build-contracts-fast:
+	bash ./scripts/ci-cache-helpers.sh build-fast
+
 ## test-contracts: Run contract test suite
 test-contracts:
 	cargo test --locked
@@ -213,6 +220,15 @@ test-contracts:
 # skips it, since only the deployable contracts are default workspace members.
 lint-contracts:
 	cargo clippy --workspace --all-targets -- -D warnings
+
+## ci-cache-setup: Restore Cargo target cache for contracts CI
+# Centralizes cache setup so the workflow and local runs share one code path.
+ci-cache-setup:
+	bash ./scripts/ci-cache-helpers.sh restore
+
+## ci-cache-save: Save Cargo target cache for contracts CI
+ci-cache-save:
+	bash ./scripts/ci-cache-helpers.sh save
 
 # ------------------------------------------------------------------------------
 # Circuits (Noir / Aztec Barretenberg)
