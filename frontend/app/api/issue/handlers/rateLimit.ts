@@ -1,5 +1,3 @@
-import type { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
 /**
  * rateLimit.ts — the two rate-limit dimensions POST /api/issue is subject to.
  *
@@ -28,39 +26,14 @@ import {
   tooManyRequestsResponse,
   LIMITS,
 } from "@/lib/rate-limit";
-import { logger, stripSensitiveFields } from "@/lib/logger";
-
-/**
- * Rate limiting for POST /api/issue.
- *
- * Two dimensions are enforced, in the same order the route has always used:
- *   1. per client IP, before the body is read;
- *   2. per holder wallet, once the body has been parsed.
- *
- * The helpers return the ready-to-send 429 (or `null` when the request is
- * allowed), keeping response construction and PII-free logging out of the
- * dispatcher.
- */
-
-/** Enforce the per-IP issuance limit. Returns a 429 response when throttled. */
-export function checkIpRateLimit(req: NextRequest, requestId: string): NextResponse | null {
-  const ip = extractIp(req);
-  const result = checkLimit(`issue:ip:${ip}`, LIMITS.issuePerIp(), LIMITS.windowMs());
 
 /**
  * Enforce the per-IP limit. Raw IPs are never logged — only a truncated
  * SHA-256 token, enough to correlate lines without carrying the address.
  */
-export function enforceIpRateLimit(
-  req: NextRequest,
-  requestId: string,
-): NextResponse | null {
+export function enforceIpRateLimit(req: NextRequest, requestId: string): NextResponse | null {
   const ip = extractIp(req);
-  const result = checkLimit(
-    `issue:ip:${ip}`,
-    LIMITS.issuePerIp(),
-    LIMITS.windowMs(),
-  );
+  const result = checkLimit(`issue:ip:${ip}`, LIMITS.issuePerIp(), LIMITS.windowMs());
   if (!result.throttled) return null;
 
   logger.warn(
@@ -76,29 +49,11 @@ export function enforceIpRateLimit(
 }
 
 /**
- * Enforce the per-wallet issuance limit. The caller passes the already-parsed
- * holder address; a missing holder is not rate limited here because validation
- * will reject the request.
- */
-export function checkWalletRateLimit(
-  holder: string | undefined,
-  requestId: string,
-): NextResponse | null {
-  if (!holder) return null;
-
-  const result = checkLimit(`issue:wallet:${holder}`, LIMITS.issuePerWallet(), LIMITS.windowMs());
  * Enforce the per-wallet limit, keyed on the `holder` from the request body
  * (which is already known to be present at this point in the flow).
  */
-export function enforceWalletRateLimit(
-  wallet: string,
-  requestId: string,
-): NextResponse | null {
-  const result = checkLimit(
-    `issue:wallet:${wallet}`,
-    LIMITS.issuePerWallet(),
-    LIMITS.windowMs(),
-  );
+export function enforceWalletRateLimit(wallet: string, requestId: string): NextResponse | null {
+  const result = checkLimit(`issue:wallet:${wallet}`, LIMITS.issuePerWallet(), LIMITS.windowMs());
   if (!result.throttled) return null;
 
   logger.warn(
@@ -106,7 +61,6 @@ export function enforceWalletRateLimit(
       event: "rate_limited",
       route: "issue",
       dimension: "wallet",
-      walletToken: hashForLog(holder),
       walletToken: hashForLog(wallet),
       requestId,
     }),

@@ -1,10 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { logger, stripSensitiveFields, resolveRequestId } from "@/lib/logger";
-import { CREDENTIAL_TYPES, type ClaimParams, type CredentialType } from "@stellarcred/issuer";
-import { fetchIssuerPubkey } from "@/lib/issuer-registry";
-import { currentDeploymentRef } from "@/lib/deployment";
-import { circuitVersionStampFor } from "@/lib/circuit-versions";
-import { readJsonBody, bodyErrorResponse } from "../../../lib/request-limits";
 import { bodyErrorResponse } from "@/lib/request-limits";
 import { logger, stripSensitiveFields, resolveRequestId } from "@/lib/logger";
 import {
@@ -16,22 +10,9 @@ import {
   idempotencyInFlightFail,
   isValidIdempotencyKey,
   MAX_KEY_LENGTH_BYTES,
+  personaPendingIdempotencyRecord,
   type IdempotencyRecord,
 } from "@/lib/idempotency";
-import { checkIpRateLimit } from "./handlers/rateLimit";
-import { runIssuanceFlow, type IssuanceFlowResult } from "./handlers/issuanceFlow";
-
-/**
- * POST /api/issue — thin dispatcher.
- *
- * Validation lives in ./handlers/validate.ts, rate limiting in
- * ./handlers/rateLimit.ts, and the provider/signing orchestration in
- * ./handlers/issuanceFlow.ts. This file owns only the request lifecycle:
- * idempotency replay, the per-IP limit, and finalizing the flow's response
- * (request id, idempotency persistence, response logs).
- */
-import { createPersonaInquiry, resolvePersonaKYC } from "@/lib/persona";
-import { registerPendingInquiry } from "@/lib/persona-webhook";
 import {
   normalizeIssueRequest,
   parseIssueBody,
@@ -96,8 +77,6 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ── Rate limiting (IP level) ───────────────────────────────────────────────
-  const ipLimited = checkIpRateLimit(req, requestId);
   // Per-IP limit runs before the body is read, and before the idempotency
   // cache, so a throttled IP never gets its 429 stored and replayed.
   const ipLimited = enforceIpRateLimit(req, requestId);
@@ -108,10 +87,8 @@ export async function POST(req: NextRequest) {
     return ipLimited;
   }
 
-  const startTime = Date.now();
   try {
-    const result = await runIssuanceFlow(req, requestId);
-    return await finalizeResponse(result, requestId, idempotencyKey, startTime);
+    return await executeRequest(req, requestId, idempotencyKey);
   } catch (e) {
     if (idempotencyKey) idempotencyInFlightFail(idempotencyKey, e);
     throw e;
@@ -147,12 +124,6 @@ function replayIdempotencyRecord(record: IdempotencyRecord, requestId: string): 
   );
 }
 
-/**
- * Adds the request id, persists the idempotency outcome, and writes the
- * per-credential response log line before the response leaves the process.
- */
-async function finalizeResponse(
-  result: IssuanceFlowResult,
 /** Render a validation verdict as the JSON error response callers expect. */
 function failureResponse(failure: ValidationFailure): NextResponse {
   return NextResponse.json({ error: failure.error }, { status: failure.status });
@@ -162,27 +133,6 @@ async function executeRequest(
   req: NextRequest,
   requestId: string,
   idempotencyKey: string | undefined,
-  startTime: number,
-): Promise<NextResponse> {
-  const { response, credentialTypes, issuerId, walletAddress, outcome, record } = result;
-  const durationMs = Date.now() - startTime;
-  response.headers.set("x-request-id", requestId);
-
-  if (idempotencyKey) {
-    try {
-      const completedRecord =
-        record ??
-        (response.status === 200
-          ? completedIdempotencyRecord(response.status, await response.clone().text())
-          : undefined);
-      if (completedRecord) {
-        await idempotencySetAsync(idempotencyKey, completedRecord);
-        idempotencyInFlightSettle(idempotencyKey, completedRecord);
-      } else {
-        idempotencyInFlightFail(
-          idempotencyKey,
-          new Error("request did not complete an idempotent operation"),
-        );
 ) {
   const startTime = Date.now();
   let outcome: "success" | "failure" = "failure";
@@ -243,25 +193,6 @@ async function executeRequest(
       } catch (e) {
         idempotencyInFlightFail(idempotencyKey, e);
       }
-    } catch (e) {
-      idempotencyInFlightFail(idempotencyKey, e);
-    }
-  }
-
-  for (const type of credentialTypes) {
-    logger.info(
-      stripSensitiveFields({
-        event: "response_sent",
-        credentialType: type,
-        issuerId,
-        walletAddress,
-        outcome,
-        durationMs,
-        requestId,
-      }),
-    );
-  }
-  return response;
     }
 
     for (const type of credentialTypes) {
