@@ -30,6 +30,7 @@ import {
 } from "@/lib/issuer-service";
 import { resolveTenant, validateTenantCredentialTypes } from "@/lib/tenancy";
 import { normalizeAttributes } from "@/lib/attribute-normalizer";
+import { equals } from "@/lib/crypto";
 
 const SIM_ACCOUNT =
   env.NEXT_PUBLIC_ISSUER_ADDRESS ?? "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
@@ -348,7 +349,7 @@ async function executeBatchRequest(
           cachedIssuerKeyCheck.set(issuerId, false);
         } else {
           const localKey = localIssuerPubkeyBytes(customIssuerClient);
-          const matches = Buffer.from(registered).equals(localKey);
+          const matches = equals(registered, localKey);
           cachedIssuerKeyCheck.set(issuerId, matches);
         }
       }
