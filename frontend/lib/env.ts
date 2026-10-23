@@ -155,6 +155,10 @@ const envSchema = z
       emptyToUndefined,
       z.coerce.number().int().positive().optional(),
     ),
+    RATE_LIMIT_CSP_REPORT_IP: z.preprocess(
+      emptyToUndefined,
+      z.coerce.number().int().positive().optional(),
+    ),
 
     // --- Redis (optional; enables shared rate-limit store) --------------------
     // When set, lib/redis-rate-limit.ts stores fixed-window counters in Redis
