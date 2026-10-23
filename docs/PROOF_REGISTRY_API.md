@@ -118,6 +118,22 @@ fn submit_proof(env, holder: Address, issuer_id: Address, credential_type: Symbo
 - **Notes:** verifies issuer trust via IssuerRegistry *and* forwards the proof
   to CredentialVerifier; caches `ProofRecord` only if both pass.
 
+### `is_nullifier_used`
+
+```rust
+fn is_nullifier_used(env: Env, app_context: BytesN<32>, nullifier: BytesN<32>) -> bool
+```
+
+- **Audience:** Integrator, Holder
+- **Auth:** none (public read).
+- **Stability:** Stable
+- **Parameters:**
+  - `app_context` — 32-byte application identifier / domain separator.
+  - `nullifier` — 32-byte nullifier hash to check.
+- **Returns:** `bool` — `true` if the nullifier has already been recorded in `app_context`, `false` otherwise.
+- **Panics:** none.
+- **Events:** none.
+- **Notes:** Allows clients and verifiers to check if an identity proof has already been consumed for a given application context before submitting a transaction.
 ### `submit_proof_with_nullifier`
 
 ```rust
