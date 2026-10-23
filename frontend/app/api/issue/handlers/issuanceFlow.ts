@@ -21,16 +21,13 @@
  *    per-source account detail never leaves this function.
  */
 
-import type { Credential, CredentialType } from "@stellarcred/issuer";
+import type { Credential, CredentialType, IssuerClient } from "@stellarcred/issuer";
 import { createPersonaInquiry, resolvePersonaKYC } from "@/lib/persona";
 import { registerPendingInquiry } from "@/lib/persona-webhook";
 import { fetchPlaidBalance } from "@/lib/plaid";
 import { issueAndAuditCredentials } from "@/lib/issuer-service";
 import { currentDeploymentRef, type DeploymentRef } from "@/lib/deployment";
-import {
-  circuitVersionStampFor,
-  type CircuitVersionStamp,
-} from "@/lib/circuit-versions";
+import { circuitVersionStampFor, type CircuitVersionStamp } from "@/lib/circuit-versions";
 import { reportError } from "@/lib/error-reporting";
 import { env } from "@/lib/env";
 import { logger, stripSensitiveFields } from "@/lib/logger";
@@ -40,11 +37,12 @@ export interface IssuanceContext {
   requestId: string;
   /** Origin to fall back to for the Persona redirect when BASE_URL is unset. */
   origin: string;
+  /** Tenant signing client; omitted for the default single-issuer flow. */
+  issuerClient?: IssuerClient;
 }
 
 /** A signed credential plus the deployment / circuit it was minted against. */
-export type IssuedCredential = Credential &
-  CircuitVersionStamp & { deployment: DeploymentRef };
+export type IssuedCredential = Credential & CircuitVersionStamp & { deployment: DeploymentRef };
 
 export type IssuanceOutcome =
   /** The holder must complete (or resume) a Persona inquiry first. */
@@ -64,7 +62,7 @@ export async function runIssuanceFlow(
   request: IssueRequest,
   ctx: IssuanceContext,
 ): Promise<IssuanceOutcome> {
-  const { requestId, origin } = ctx;
+  const { requestId, origin, issuerClient } = ctx;
   const {
     credentialTypes,
     holder,
@@ -101,8 +99,7 @@ export async function runIssuanceFlow(
           kind: "error",
           status: 500,
           body: {
-            error:
-              "PERSONA_KYC_TEMPLATE_ID is required when PERSONA_API_KEY is set",
+            error: "PERSONA_KYC_TEMPLATE_ID is required when PERSONA_API_KEY is set",
           },
         };
       }
@@ -125,11 +122,7 @@ export async function runIssuanceFlow(
           const redirectUrl = returnUrl
             ? `${baseUrl}/verify?return_url=${encodeURIComponent(returnUrl)}`
             : `${baseUrl}/verify`;
-          const { url, id } = await createPersonaInquiry(
-            templateId,
-            redirectUrl,
-            holder,
-          );
+          const { url, id } = await createPersonaInquiry(templateId, redirectUrl, holder);
           // Keep only the non-PII issuance context server-side so a webhook can
           // complete an approval even when the holder never returns to the tab.
           registerPendingInquiry(id, {
@@ -189,8 +182,7 @@ export async function runIssuanceFlow(
           kind: "error",
           status: 502,
           body: {
-            error:
-              "Identity verification service is unavailable. Please try again.",
+            error: "Identity verification service is unavailable. Please try again.",
           },
         };
       }
@@ -246,6 +238,7 @@ export async function runIssuanceFlow(
       attributes,
       claimParams,
       requestId,
+      issuerClient,
     });
 
     // Stamp the deployment and the circuit version on every credential at mint
@@ -253,13 +246,11 @@ export async function runIssuanceFlow(
     // detect — before proving, with a message naming both versions — that the
     // circuit this credential was issued against is no longer the one this app
     // serves, instead of surfacing it later as an invalid witness.
-    const credentials: IssuedCredential[] = issuedCredentials.map(
-      (credential) => ({
-        ...credential,
-        deployment: currentDeploymentRef(),
-        ...circuitVersionStampFor(credential.type),
-      }),
-    );
+    const credentials: IssuedCredential[] = issuedCredentials.map((credential) => ({
+      ...credential,
+      deployment: currentDeploymentRef(),
+      ...circuitVersionStampFor(credential.type),
+    }));
 
     return { kind: "issued", credentials };
   } catch (e) {
