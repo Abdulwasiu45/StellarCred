@@ -47,6 +47,12 @@ use soroban_sdk::{
 
 // ── Contract versioning ──────────────────────────────────────────────────────
 // Semantic version: MAJOR.MINOR.PATCH
+// NOTE: Backfill (indexing a bounded historical ledger range with batched
+// requests and resumable progress) is an off-chain indexer feature and is
+// intentionally not implemented in this contract. This file has no backfill
+// command or ingestion logic; the issue's requirements belong to the indexer
+// service, which should own its own cursor, batch size, and progress
+// reporting, kept separate from the live poll loop.
 // Increment MAJOR on breaking changes (new entry points, changed ABI)
 // Increment MINOR on additive changes (new events, new query endpoints)
 // Increment PATCH on bug fixes with no ABI changes

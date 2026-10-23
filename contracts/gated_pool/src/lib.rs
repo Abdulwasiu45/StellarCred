@@ -56,6 +56,7 @@ const BALANCE_TTL: u32 = 120 * DAY_IN_LEDGERS;
 // Increment MINOR on additive changes (new events, new query endpoints)
 // Increment PATCH on bug fixes with no ABI changes
 const CONTRACT_VERSION: u32 = 1_001_000; // 1.1.0 encoded as (major * 1000000) + (minor * 1000) + patch
+// NOTE: The issue above concerns an off-chain indexer (backfill command), which is not part of this Soroban contract. No contract changes are required for it.
 
 /// Typed client for the deployed ProofRegistry contract. Declared as an
 /// interface so this contract links only the client, not the registry's

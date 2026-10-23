@@ -21,7 +21,8 @@ PNPM_MAJOR      := 9
         build-contracts test-contracts lint-contracts \
         compile-circuits check-circuits \
         build-frontend test-frontend lint-frontend test-sdk test-example test-a11y \
-        build-indexer test-indexer lint-indexer run-indexer
+        build-indexer test-indexer lint-indexer run-indexer \
+        backfill backfill-resume
 
 # ------------------------------------------------------------------------------
 # Top-Level Orchestration Targets
@@ -58,6 +59,8 @@ help:
 	@echo "  make test-indexer    - Run Jest test suite for indexer"
 	@echo "  make lint-indexer    - Run ESLint on indexer service code"
 	@echo "  make run-indexer     - Start local indexer service"
+	@echo "  make backfill        - Backfill a bounded ledger range (FROM=, TO=; TO defaults to head)"
+	@echo "  make backfill-resume - Resume an interrupted backfill from its checkpoint"
 
 ## all: Run build, test, and lint across all workspaces (CI mirror)
 all: build test lint
@@ -275,3 +278,27 @@ lint-indexer:
 ## run-indexer: Start the indexer service locally
 run-indexer:
 	cd services/indexer && npm start
+
+# ------------------------------------------------------------------------------
+# Indexer Backfill (bounded, resumable, separate from the live poll loop)
+# ------------------------------------------------------------------------------
+# Usage:
+#   make backfill FROM=1000000 TO=1200000        # explicit range
+#   make backfill FROM=genesis                   # contract deployment to head
+#   make backfill-resume                         # continue from checkpoint
+# Progress is printed per batch; a checkpoint is persisted after each batch so
+# an interrupted run resumes without re-fetching completed ledgers.
+# Rule of thumb: throughput is bound by RPC rate limits (~1 batch/100ms);
+# expect roughly 1 ledger range of 10k ledgers per minute on a paid endpoint.
+
+BACKFILL_FROM   ?= genesis
+BACKFILL_TO     ?= head
+BACKFILL_BATCH  ?= 200
+
+## backfill: Index a bounded ledger range in batched, resumable mode
+backfill:
+	cd services/indexer && npm run backfill -- --from $(BACKFILL_FROM) --to $(BACKFILL_TO) --batch-size $(BACKFILL_BATCH)
+
+## backfill-resume: Resume an interrupted backfill from its persisted checkpoint
+backfill-resume:
+	cd services/indexer && npm run backfill -- --resume --batch-size $(BACKFILL_BATCH)
