@@ -128,7 +128,6 @@ export async function withRateLimits(
 //
 // Shared error boundary and Sentry observability middleware for API routes (#853).
 
-import type { NextRequest, NextResponse } from "next/server";
 import {
   withSentryRouteHandler,
   captureServerException,
