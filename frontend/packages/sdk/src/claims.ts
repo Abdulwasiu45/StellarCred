@@ -1850,10 +1850,7 @@ export async function isNullifierUsed(
   opts?: { requestTimeoutMs?: number; throwOnError?: boolean },
 ): Promise<boolean> {
   const throwOnError = opts?.throwOnError === true;
-  const client = await getClient(throwOnError);
-  if (!client) return false;
-
-  const client = (await getClient(opts?.throwOnError)) as any;
+  const client = (await getClient(throwOnError)) as any;
   if (!client) {
     return false;
   }
@@ -1882,7 +1879,6 @@ export async function isNullifierUsed(
       opts?.requestTimeoutMs ?? _config.requestTimeoutMs,
     );
     return result ?? false;
-    return typeof res?.result === "boolean" ? res.result : Boolean(res);
   } catch (err) {
     if (throwOnError) {
       if (err instanceof ConfigError) throw err;

@@ -14,21 +14,6 @@ import {
   type IdempotencyRecord,
 } from "@/lib/idempotency";
 import {
-  issueAndAuditCredentials,
-  localIssuerPubkeyBytes,
-  resolveIssuerSigningKey,
-  createIssuerClient,
-} from "@/lib/issuer-service";
-import { resolveTenant, validateTenantCredentialTypes } from "@/lib/tenancy";
-import { normalizeAttributes } from "@/lib/attribute-normalizer";
-
-const SIM_ACCOUNT =
-  env.NEXT_PUBLIC_ISSUER_ADDRESS ?? "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
-
-// readonly CredentialType[] widened to string[] so .includes() accepts any
-// user-supplied string during validation, before it's known to be valid.
-const VALID_TYPES: readonly string[] = CREDENTIAL_TYPES;
-
   normalizeIssueRequest,
   parseIssueBody,
   resolveIssuerClient,
@@ -236,11 +221,6 @@ async function executeRequest(
   // so a throttled wallet still produces no `response_sent` lines.
   credentialTypes = request.credentialTypes;
 
-  const attributes: Record<string, string> = normalizeAttributes(
-    body.type,
-    body.attribute,
-    body.attributes,
-  );
   const validated = validateIssueRequest(request, requestId, tenant);
   if (!validated.ok) return sendResponse(failureResponse(validated.failure));
 
