@@ -58,9 +58,16 @@
  * are defined in `frontend/lib/rate-limit.ts` and apply to both stores.
  */
 
-import type { NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 import { tooManyRequestsResponse } from "@/lib/rate-limit";
 import { checkLimitRedis } from "@/lib/redis-rate-limit";
+import {
+  withSentryRouteHandler,
+  captureServerException,
+  initSentry,
+  getSentryClient,
+} from "@/lib/monitoring/sentry";
 
 export interface RateLimitOptions {
   /** Namespaced key for this limiter bucket (e.g. `"issue:ip:<raw-ip>"`). */
@@ -124,16 +131,10 @@ export async function withRateLimits(
 
   return opts.handler();
 }
-// frontend/app/api/_middleware.ts
-//
-// Shared error boundary and Sentry observability middleware for API routes (#853).
 
-import {
-  withSentryRouteHandler,
-  captureServerException,
-  initSentry,
-  getSentryClient,
-} from "@/lib/monitoring/sentry";
+// ---------------------------------------------------------------------------
+// Shared error boundary and Sentry observability middleware (#853)
+// ---------------------------------------------------------------------------
 
 export { withSentryRouteHandler, captureServerException, initSentry, getSentryClient };
 
@@ -161,13 +162,13 @@ export async function handleApiError(
     status,
   });
 
-  return Response.json(
+  return NextResponse.json(
     {
       error: "Internal Server Error",
       requestId,
       sentryEventId: eventId,
     },
     { status }
-  ) as unknown as NextResponse;
+  );
 }
 
