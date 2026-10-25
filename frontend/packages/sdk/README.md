@@ -412,36 +412,71 @@ Notes:
 
 ### `buildVerifyUrl(options)`
 
-Builds a StellarCred verification URL to redirect users to. After verifying, StellarCred returns the user to `returnUrl` with `?sc_verified=true&sc_wallet=<address>&sc_claims=<claim-types>` appended. `sc_claims` is a comma-separated list of the claim types issued in the current session (not all-time claims), allowing protocols to optimistically update their UI before an on-chain read completes.
+Builds a strongly typed StellarCred verification URL to redirect users to. After verifying, StellarCred returns the user to `returnUrl` with `?sc_verified=true&sc_wallet=<address>&sc_claims=<claim-types>` appended. `sc_claims` is a comma-separated list of the claim types issued in the current session (not all-time claims), allowing protocols to optimistically update their UI before an on-chain read completes.
 
 ```ts
-// Basic — redirect to verify KYC
-const url = StellarCred.buildVerifyUrl({
+import {
+  buildVerifyUrl,
+  type BuildVerifyUrlOptions,
+  type AgeVerifyUrlOptions,
+  type ThresholdVerifyUrlOptions,
+  type JurisdictionVerifyUrlOptions,
+} from "@stellarcred/sdk";
+
+// 1. Basic — redirect to verify KYC (absolute or relative returnUrl)
+const kycUrl = buildVerifyUrl({
   returnUrl: "https://yourapp.xyz/deposit",
   claim: "kyc",
 });
 
-// With threshold — user proves balance >= $50,000
-const url = StellarCred.buildVerifyUrl({
+// Relative returnUrl is also supported
+const localUrl = buildVerifyUrl({
+  returnUrl: "/dashboard",
+  claim: "kyc",
+});
+
+// 2. Financial claims with threshold — number or string accepted
+const fundsUrl = buildVerifyUrl({
   returnUrl: "https://yourapp.xyz/vault",
   claim: "funds",
-  claimParams: { threshold: "50000" },
-});
+  claimParams: { threshold: 50_000 }, // proves balance >= $50,000
+} satisfies ThresholdVerifyUrlOptions);
 
-// Age gate — require 21+
-const url = StellarCred.buildVerifyUrl({
+// 3. Age gate — minimum age in years (number or string)
+const ageUrl = buildVerifyUrl({
   returnUrl: "https://yourapp.xyz/markets",
   claim: "age",
-  claimParams: { threshold_years: "21" },
-});
+  claimParams: { threshold_years: 21 }, // require 21+
+} satisfies AgeVerifyUrlOptions);
 
-// Jurisdiction — block specific countries (ISO 3166-1 numeric codes)
-const url = StellarCred.buildVerifyUrl({
+// 4. Jurisdiction — block specific countries (array or comma-separated string)
+const geoUrl = buildVerifyUrl({
   returnUrl: "https://yourapp.xyz/app",
   claim: "jurisdiction",
-  claimParams: { restricted: ["840", "364"] },
+  claimParams: { restricted: ["840", "364"] }, // ISO 3166-1 numeric codes
+} satisfies JurisdictionVerifyUrlOptions);
+
+// 5. Multi-claim verification request
+const multiUrl = buildVerifyUrl({
+  returnUrl: "https://yourapp.xyz/onboarding",
+  claims: ["kyc", "funds"],
+  claimParams: { threshold: "10000" },
+});
+
+// 6. Security options: expiry, single-use token (jti), and CSRF state
+const secureUrl = buildVerifyUrl({
+  returnUrl: "https://yourapp.xyz/callback",
+  claim: "kyc",
+  wallet: "GA7QYNF7SOWQ3GLR2BGMZEHXAVIRZA4KVWLTJJFC7MGXUA74P7UJVWGS",
+  state: "opaque_csrf_session_id",
+  expiresInMinutes: 15, // link expires in 15 minutes
+  singleUse: true, // embeds unique jti consumed on first visit
+  trustedIssuers: ["GCFXHS4GMXBYRBAPOH2KZIGNDQBMV5DNZD5WT6VHGQ3M7N2TRB664BXO"],
 });
 ```
+
+> ⚠️ **Security Notice (Issue #543):**
+> Query parameters in the return URL (`sc_verified`, `sc_wallet`) are **untrusted hints**. Never grant access solely based on `sc_verified=true` or `sc_wallet`. Always require the holder to sign a challenge via `verifyWalletClaim` to prove key control and confirm on-chain credentials.
 
 ## Claim types
 
@@ -493,7 +528,12 @@ duplicating the union. They appear in `dist/index.d.ts` after `pnpm build` and
 are available from `@stellarcred/sdk` directly.
 
 ```ts
-import type { ClaimType, ClaimOptions } from "@stellarcred/sdk";
+import type {
+  ClaimType,
+  ClaimOptions,
+  BuildVerifyUrlOptions,
+  BuildVerifyUrlClaimParams,
+} from "@stellarcred/sdk";
 
 // `ClaimType` is exactly the credential union published with the SDK.
 // `ClaimOptions.minThreshold` / `.trustedIssuers` are forwarded to `hasClaim`'s
@@ -513,6 +553,9 @@ function gate(wallet: string, claim: ClaimType, opts?: ClaimOptions) {
 | `parseCredentialJson` | `(json: string) => CredentialValidationResult` | Parses and validates credential JSON text without throwing. |
 | `assertValidCredential` | `(value: unknown) => asserts value is CredentialJson` | Throws `CredentialValidationError` (with an `issues` array) for invalid input. |
 | `CredentialJson` | interface | The canonical credential shape accepted by the validator. |
+| `BuildVerifyUrlOptions` | `{ returnUrl: string; claim?: ClaimType; ... }` | Strongly typed options accepted by `buildVerifyUrl`. |
+| `BuildVerifyUrlClaimParams` | `{ threshold?: string \| number; threshold_years?: string \| number; restricted?: string \| number \| (string \| number)[]; ... }` | Strongly typed claim parameters for `buildVerifyUrl`. |
+| `UntrustedReturnParams` | `{ verified: boolean; wallet: string \| null; claims: string[]; state: string \| null }` | Shape of parsed return-URL parameters returned by `parseReturnParams`. |
 
 ## Full integration example
 
