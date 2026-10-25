@@ -143,7 +143,7 @@ export function useOnboarding() {
   // Un-dismiss and jump to a specific step — used by the contextual nudge
   // to re-open the wizard at a specific point after the user dismissed it.
   const resumeAt = useCallback((index: number) => {
-    setState((prev) => {
+    setState((_prev) => {
       const next: OnboardingState = {
         step: Math.max(0, Math.min(index, ONBOARDING_STEPS.length - 1)),
         dismissed: false,

@@ -26,7 +26,7 @@ vi.mock("@/lib/wallet-context", () => ({
 }));
 
 vi.mock("next-intl", () => ({
-  useTranslations: (ns: string) => (key: string) => {
+  useTranslations: (_ns: string) => (key: string) => {
     const msgs: Record<string, string> = {
       message: "Complete your setup",
       continueSetup: "Continue setup",
