@@ -57,6 +57,7 @@ export interface IssueBody {
   claimParams?: ClaimParams;
   persona_inquiry_id?: string;
   returnUrl?: string;
+  preview?: boolean;
 }
 
 /**
@@ -76,6 +77,7 @@ export interface NormalizedIssueRequest {
   claimParams?: ClaimParams;
   personaInquiryId?: string;
   returnUrl?: string;
+  preview?: boolean;
 }
 
 /** A normalised request whose required fields have been proven present. */
@@ -152,6 +154,7 @@ export function normalizeIssueRequest(
     claimParams: body.claimParams,
     personaInquiryId: body.persona_inquiry_id,
     returnUrl: body.returnUrl,
+    preview: body.preview === true,
   };
 }
 
