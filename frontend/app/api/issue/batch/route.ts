@@ -31,7 +31,8 @@ import {
   resolveIssuerSigningKey,
   createIssuerClient,
 } from "@/lib/issuer-service";
-import { resolveTenant, validateTenantCredentialTypes } from "@/lib/tenancy";
+import { validateTenantCredentialTypes } from "@/lib/tenancy";
+import { authenticateTenant, authErrorResponse } from "@/app/api/_middleware";
 import { normalizeAttributes } from "@/lib/attribute-normalizer";
 import { equals } from "@/lib/crypto";
 
@@ -195,16 +196,14 @@ async function executeBatchRequest(
         items?: BatchItemRequest[];
       };
 
-  const tenantRes = await resolveTenant(req);
-  if (tenantRes.error) {
+  const tenantRes = await authenticateTenant(req);
+  if (!tenantRes.ok) {
     if (idempotencyKey) {
       idempotencyInFlightFail(idempotencyKey, new Error(tenantRes.error));
     }
-    const res = NextResponse.json({ error: tenantRes.error }, { status: tenantRes.status ?? 401 });
-    res.headers.set("x-request-id", requestId);
-    return res;
+    return authErrorResponse(tenantRes, requestId);
   }
-  const tenant = tenantRes.tenant;
+  const tenant = tenantRes.value;
 
   const parsed = await readJsonBody<RawBatchBody>(req);
   if (!parsed.ok) {
