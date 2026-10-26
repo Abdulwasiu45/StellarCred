@@ -94,6 +94,41 @@ Setting `STELLARCRED_INDEXER_URL` alone changes nothing: reads still go to the
 chain until you pass `source` explicitly. See
 [Indexer fast path](#indexer-fast-path-optional).
 
+### Claim cache (optional)
+
+Calling `hasClaim` on every render sends one RPC simulation per render. Turn on
+the in-memory claim cache to answer repeated reads locally:
+
+```ts
+StellarCred.configure({
+  claimCache: true, // off by default
+  claimCacheTtlMs: 30_000, // default 30s
+  claimCacheMaxEntries: 1000, // default; oldest entries are evicted first
+});
+
+await StellarCred.hasClaim(wallet, "kyc"); // RPC
+await StellarCred.hasClaim(wallet, "kyc"); // served from memory for 30s
+
+// After a submission you know about, drop the stale answer:
+StellarCred.invalidate(wallet, "kyc"); // or invalidate(wallet) for every type
+```
+
+- Entries are keyed by wallet, credential type, `minThreshold`, the
+  `trustedIssuers` set and `source`, so different questions never share an
+  answer. `hasClaim`, `hasClaims`, `getClaim` and `verifyPreset` share the cache;
+  `getClaims`, `getClaimRecord` and `checkClaimStatus` always read the source.
+- Only successful reads are cached. A fail-soft `false` caused by an RPC error,
+  a timeout or missing configuration is not, so a transient outage cannot pin a
+  wallet to `false` for the TTL.
+- A cached `valid` answer never outlives the credential's on-chain expiry.
+- Pass `fresh: true` to skip the cache for one read (the result still refreshes
+  it). `watchClaim` polls and the `refetch` of `useStellarCred` and
+  `createClaimGate` always read fresh.
+- `configure()` empties the cache; `clearClaimCache()` does so explicitly. A
+  read already in flight when you call `invalidate` is not stored.
+- The cache lives in the current process (or browser tab). It is per-instance,
+  not shared between servers.
+
 ## Bootstrapping from a deployment (capability descriptor)
 
 Instead of supplying contract IDs one by one, the SDK can configure itself
@@ -391,35 +426,71 @@ const options = {
 
 const url = buildVerifyUrl(options);
 ```
+Builds a strongly typed StellarCred verification URL to redirect users to. After verifying, StellarCred returns the user to `returnUrl` with `?sc_verified=true&sc_wallet=<address>&sc_claims=<claim-types>` appended. `sc_claims` is a comma-separated list of the claim types issued in the current session (not all-time claims), allowing protocols to optimistically update their UI before an on-chain read completes.
 
 ```ts
-// Basic — redirect to verify KYC
-const url = StellarCred.buildVerifyUrl({
+import {
+  buildVerifyUrl,
+  type BuildVerifyUrlOptions,
+  type AgeVerifyUrlOptions,
+  type ThresholdVerifyUrlOptions,
+  type JurisdictionVerifyUrlOptions,
+} from "@stellarcred/sdk";
+
+// 1. Basic — redirect to verify KYC (absolute or relative returnUrl)
+const kycUrl = buildVerifyUrl({
   returnUrl: "https://yourapp.xyz/deposit",
   claim: "kyc",
 });
 
-// With threshold — user proves balance >= $50,000
-const url = StellarCred.buildVerifyUrl({
+// Relative returnUrl is also supported
+const localUrl = buildVerifyUrl({
+  returnUrl: "/dashboard",
+  claim: "kyc",
+});
+
+// 2. Financial claims with threshold — number or string accepted
+const fundsUrl = buildVerifyUrl({
   returnUrl: "https://yourapp.xyz/vault",
   claim: "funds",
-  claimParams: { threshold: "50000" },
-});
+  claimParams: { threshold: 50_000 }, // proves balance >= $50,000
+} satisfies ThresholdVerifyUrlOptions);
 
-// Age gate — require 21+
-const url = StellarCred.buildVerifyUrl({
+// 3. Age gate — minimum age in years (number or string)
+const ageUrl = buildVerifyUrl({
   returnUrl: "https://yourapp.xyz/markets",
   claim: "age",
-  claimParams: { threshold_years: "21" },
-});
+  claimParams: { threshold_years: 21 }, // require 21+
+} satisfies AgeVerifyUrlOptions);
 
-// Jurisdiction — block specific countries (ISO 3166-1 numeric codes)
-const url = StellarCred.buildVerifyUrl({
+// 4. Jurisdiction — block specific countries (array or comma-separated string)
+const geoUrl = buildVerifyUrl({
   returnUrl: "https://yourapp.xyz/app",
   claim: "jurisdiction",
-  claimParams: { restricted: ["840", "364"] },
+  claimParams: { restricted: ["840", "364"] }, // ISO 3166-1 numeric codes
+} satisfies JurisdictionVerifyUrlOptions);
+
+// 5. Multi-claim verification request
+const multiUrl = buildVerifyUrl({
+  returnUrl: "https://yourapp.xyz/onboarding",
+  claims: ["kyc", "funds"],
+  claimParams: { threshold: "10000" },
+});
+
+// 6. Security options: expiry, single-use token (jti), and CSRF state
+const secureUrl = buildVerifyUrl({
+  returnUrl: "https://yourapp.xyz/callback",
+  claim: "kyc",
+  wallet: "GA7QYNF7SOWQ3GLR2BGMZEHXAVIRZA4KVWLTJJFC7MGXUA74P7UJVWGS",
+  state: "opaque_csrf_session_id",
+  expiresInMinutes: 15, // link expires in 15 minutes
+  singleUse: true, // embeds unique jti consumed on first visit
+  trustedIssuers: ["GCFXHS4GMXBYRBAPOH2KZIGNDQBMV5DNZD5WT6VHGQ3M7N2TRB664BXO"],
 });
 ```
+
+> ⚠️ **Security Notice (Issue #543):**
+> Query parameters in the return URL (`sc_verified`, `sc_wallet`) are **untrusted hints**. Never grant access solely based on `sc_verified=true` or `sc_wallet`. Always require the holder to sign a challenge via `verifyWalletClaim` to prove key control and confirm on-chain credentials.
 
 ## Claim types
 
@@ -471,7 +542,12 @@ duplicating the union. They appear in `dist/index.d.ts` after `pnpm build` and
 are available from `@stellarcred/sdk` directly.
 
 ```ts
-import type { ClaimType, ClaimOptions } from "@stellarcred/sdk";
+import type {
+  ClaimType,
+  ClaimOptions,
+  BuildVerifyUrlOptions,
+  BuildVerifyUrlClaimParams,
+} from "@stellarcred/sdk";
 
 // `ClaimType` is exactly the credential union published with the SDK.
 // `ClaimOptions.minThreshold` / `.trustedIssuers` are forwarded to `hasClaim`'s
@@ -493,6 +569,9 @@ function gate(wallet: string, claim: ClaimType, opts?: ClaimOptions) {
 | `parseCredentialJson` | `(json: string) => CredentialValidationResult` | Parses and validates credential JSON text without throwing. |
 | `assertValidCredential` | `(value: unknown) => asserts value is CredentialJson` | Throws `CredentialValidationError` (with an `issues` array) for invalid input. |
 | `CredentialJson` | interface | The canonical credential shape accepted by the validator. |
+| `BuildVerifyUrlOptions` | `{ returnUrl: string; claim?: ClaimType; ... }` | Strongly typed options accepted by `buildVerifyUrl`. |
+| `BuildVerifyUrlClaimParams` | `{ threshold?: string \| number; threshold_years?: string \| number; restricted?: string \| number \| (string \| number)[]; ... }` | Strongly typed claim parameters for `buildVerifyUrl`. |
+| `UntrustedReturnParams` | `{ verified: boolean; wallet: string \| null; claims: string[]; state: string \| null }` | Shape of parsed return-URL parameters returned by `parseReturnParams`. |
 
 ## Full integration example
 
@@ -734,8 +813,10 @@ These are inherent to reading a cache rather than the chain, and are the reason
 not six. To do that the SDK memoises indexer rows per wallet for
 `indexerCacheMs` (default `2000`, set `0` to disable).
 
-This cache applies only to `"indexer"` and `"indexer-verified"` reads. **Chain
-reads are never cached** — every `source: "chain"` call is a fresh simulation.
+This cache applies only to `"indexer"` and `"indexer-verified"` reads. Chain
+reads are only cached when you opt in to the
+[claim cache](#claim-cache-optional); otherwise every `source: "chain"` call is
+a fresh simulation.
 
 ### Failure behaviour
 
@@ -964,6 +1045,88 @@ The SDK follows [Semantic Versioning](https://semver.org/). Releases are fully a
    - Creates an official GitHub Release with release artifacts.
    - Publishes `@stellarcred/sdk` with public access to the npm registry using `NPM_TOKEN`.
 
+
+## Credential version compatibility
+
+StellarCred stamps every issued credential with the deployment and circuit version it was issued against. When a ZK circuit is upgraded, the verifying key changes — a proof generated by the old circuit cannot be verified on-chain. The version helpers let you detect stale credentials before the holder starts the proof flow.
+
+### `getDeploymentCircuitVersion(network, proofRegistryId)`
+
+Returns the circuit version for a deployment, without needing a credential.
+
+```ts
+import { getDeploymentCircuitVersion } from "@stellarcred/sdk";
+
+const current = getDeploymentCircuitVersion(
+  "testnet",
+  process.env.NEXT_PUBLIC_PROOF_REGISTRY_ID,
+);
+// "1.0.0-beta.9+0.87.0"  or  null (unrecognised deployment)
+```
+
+### `getCredentialCircuitVersion(credential)`
+
+Extracts the circuit version that was active when a credential was issued.
+
+```ts
+import { getCredentialCircuitVersion } from "@stellarcred/sdk";
+
+const info = getCredentialCircuitVersion(credential);
+// {
+//   circuitVersion:  "1.0.0-beta.9+0.87.0",  // null for legacy credentials
+//   network:         "testnet",
+//   proofRegistryId: "C...",
+//   issuedAt:        1700000000,
+// }
+```
+
+### `isCompatibleCredential(credential, expectedVersion)`
+
+Returns `true` when a credential's circuit version matches the current deployment.
+
+```ts
+import { isCompatibleCredential, getDeploymentCircuitVersion } from "@stellarcred/sdk";
+
+const current = getDeploymentCircuitVersion("testnet", registryId) ?? "";
+if (!isCompatibleCredential(credential, current)) {
+  // Prompt the holder to re-verify before starting the proof flow.
+  redirectToReVerify();
+}
+```
+
+### `getCredentialVersionStatus(credential, expectedVersion)`
+
+Returns a typed discriminant for richer UI handling:
+
+| Status | Meaning |
+|--------|---------|
+| `"compatible"` | Version matches — safe to prove |
+| `"incompatible"` | Version differs — holder must re-verify |
+| `"legacy"` | No deployment field — issued before version stamping |
+| `"unknown"` | Deployment recognised but not in the version registry |
+
+```ts
+import { StellarCred, getDeploymentCircuitVersion } from "@stellarcred/sdk";
+
+const current = getDeploymentCircuitVersion("testnet", registryId) ?? "";
+const status = StellarCred.getCredentialVersionStatus(credential, current);
+
+switch (status) {
+  case "compatible":    startProofFlow(credential); break;
+  case "incompatible":  showReVerifyBanner(); break;
+  case "legacy":        showLegacyWarning(); break;
+  case "unknown":       showUnknownDeploymentError(); break;
+}
+```
+
+### Recommended protocol flow for stale credentials
+
+1. At app startup (or when the holder's credential is loaded), call `getDeploymentCircuitVersion()` once to get the current expected version.
+2. Before entering the proof flow, call `getCredentialVersionStatus(credential, current)`.
+3. If the status is not `"compatible"`, show a banner explaining the circuit was upgraded and offer a "Re-verify" button that links to `/verify`.
+4. On re-verify completion, the holder receives a fresh credential stamped with the latest circuit version — subsequent compatibility checks will pass.
+
+> **Why re-verify instead of re-prove?** The ZK proof is tied to the commitment and circuit verifying key. A proof generated by an old circuit does not verify against the new key. The credential itself is also bound to the issuer's signature, so only the issuer can re-stamp it for the new circuit — the holder must go through a new issuance flow.
 ---
 
 ## Tree-Shaking & Bundle Optimization
